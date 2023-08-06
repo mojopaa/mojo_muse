@@ -1,2 +1,6 @@
 # mojo_muse
-Mojo users will use.
+
+
+### Following Standards:
+
+- PEP 508: Environment Markers.

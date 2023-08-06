@@ -1,0 +1,4 @@
+
+
+class MuseException(Exception):
+    pass
