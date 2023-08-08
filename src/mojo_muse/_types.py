@@ -42,7 +42,9 @@ class RepositoryConfig(_RepositoryConfig):
     def password(self, value: str) -> None:
         self._password = value
 
-    def passive_update(self, other: RepositoryConfig | None = None, **kwargs: Any) -> None:
+    def passive_update(
+        self, other: RepositoryConfig | None = None, **kwargs: Any
+    ) -> None:
         """An update method that prefers the existing value over the new one."""
         if other is not None:
             for k in other.__dataclass_fields__:
@@ -54,7 +56,11 @@ class RepositoryConfig(_RepositoryConfig):
                 setattr(self, k, v)
 
     def __rich__(self) -> str:
-        config_prefix = f"{self.config_prefix}.{self.name}." if self.name else f"{self.config_prefix}."
+        config_prefix = (
+            f"{self.config_prefix}.{self.name}."
+            if self.name
+            else f"{self.config_prefix}."
+        )
         lines: list[str] = []
         if self.url:
             lines.append(f"[primary]{config_prefix}url[/] = {self.url}")

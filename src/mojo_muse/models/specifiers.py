@@ -1,7 +1,8 @@
-from packaging.specifiers import Specifier, SpecifierSet, InvalidSpecifier
+from functools import lru_cache
+
+from packaging.specifiers import InvalidSpecifier, Specifier, SpecifierSet
 from packaging.version import Version
 
-from functools import lru_cache
 
 @lru_cache()
 def get_specifier(version_str: SpecifierSet | str) -> SpecifierSet:

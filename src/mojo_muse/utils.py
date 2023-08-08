@@ -33,6 +33,3 @@ def find_project_root(cwd: str = ".", max_depth: int = 10) -> str | None:
             break
         path = path.parent
     return None
-
-
-

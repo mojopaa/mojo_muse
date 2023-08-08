@@ -12,4 +12,6 @@ def test_cd():
 
 
 def test_find_project_root():
-    assert find_project_root() == Path(__file__).parent.parent.parent  # Any better idea?
+    assert (
+        find_project_root() == Path(__file__).parent.parent.parent
+    )  # Any better idea?
