@@ -4,6 +4,8 @@ import shutil
 import subprocess
 from pathlib import Path
 from typing import Iterator
+from urllib import parse
+from urllib.request import pathname2url
 
 
 @contextlib.contextmanager
@@ -33,3 +35,13 @@ def find_project_root(cwd: str = ".", max_depth: int = 10) -> str | None:
             break
         path = path.parent
     return None
+
+
+def path_to_url(path: str) -> str:
+    """
+    Convert a path to a file: URL.  The path will be made absolute and have
+    quoted path parts.
+    """
+    path = os.path.normpath(os.path.abspath(path))
+    url = parse.urljoin("file:", pathname2url(path))
+    return url
