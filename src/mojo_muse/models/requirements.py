@@ -103,6 +103,16 @@ class BaseMuseRequirement(ABC):
     def project_name(self) -> str | None:
         return normalize_name(self.name, lowercase=False) if self.name else None
 
+    @property
+    def key(self) -> str | None:
+        return self.project_name.lower() if self.project_name else None
+
+    def identify(self) -> str:
+        if not self.key:
+            return _get_random_key(self)
+        extras = "[{}]".format(",".join(sorted(self.extras))) if self.extras else ""
+        return self.key + extras
+
     def _format_marker(self) -> str:
         if self.marker:
             return f"; {self.marker!s}"
@@ -119,6 +129,9 @@ class BaseVcsMuseRequirement(BaseMuseRequirement):
 
 class BaseFileMuseRequirement(BaseMuseRequirement):
     pass
+
+
+#### ABC End, Concrete Classes Start #################################
 
 
 class MuseRequirement(BaseMuseRequirement):

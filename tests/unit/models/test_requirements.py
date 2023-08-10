@@ -15,6 +15,8 @@ def test_MuseRequirement():
     assert req.extras is None
     assert req.marker is None
     assert req.as_line() == "foo"
+    assert req.key == "foo"
+    assert req.identify() == "foo"
 
 
 def test_pare_requirement():
