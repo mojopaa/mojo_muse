@@ -1,13 +1,26 @@
+from packaging.requirements import Requirement
+
 from mojo_muse.models.requirements import (
+    FileMuseRequirement,
     MuseRequirement,
     VcsMuseRequirement,
-    FileMuseRequirement,
     parse_requirement,
 )
-
-from packaging.requirements import Requirement
 
 
 def test_MuseRequirement():
     req = MuseRequirement.from_requirement(Requirement("foo"))
     assert req
+    assert req.name == "foo"
+    assert req.extras is None
+    assert req.marker is None
+    assert req.as_line() == "foo"
+
+
+def test_pare_requirement():
+    req = parse_requirement("foo")
+    assert req
+    assert req.name == "foo"
+    assert req.extras is None
+    assert req.marker is None
+    assert req.as_line() == "foo"
