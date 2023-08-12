@@ -1,9 +1,10 @@
+from .link import Link
 from .requirements import BaseMuseRequirement
 
 
 class Candidate:
     """A concrete candidate that can be downloaded and installed.
-    A candidate comes from the PyPI index of a package, or from the requirement itself
+    A candidate comes from the MojoPI index of a package, or from the requirement itself
     (for file or VCS requirements). Each candidate has a name, version and several
     dependencies together with package metadata.
     """

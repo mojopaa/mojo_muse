@@ -3,8 +3,10 @@ from pathlib import Path
 
 from mojo_muse.utils import (
     add_ssh_scheme_to_git_uri,
+    build_url_from_netloc,
     cd,
     find_project_root,
+    parse_netloc,
     parse_query,
     path_to_url,
     split_auth_from_netloc,
@@ -68,3 +70,11 @@ def test_split_auth_from_url():
 
     url = "https://abc:pass@pypi.org/simple"
     assert split_auth_from_url(url) == (("abc", "pass"), "https://pypi.org/simple")
+
+
+def test_build_url_from_netloc():
+    assert build_url_from_netloc("github.com") == "https://github.com"
+
+
+def test_parse_netloc():
+    assert parse_netloc("github.com") == ("github.com", None)

@@ -124,3 +124,22 @@ def split_auth_from_url(url: str) -> tuple[tuple[str, str | None] | None, str]:
     if auth is None:
         return None, url
     return auth, parse.urlunparse(parsed._replace(netloc=netloc))
+
+
+def build_url_from_netloc(netloc: str, scheme: str = "https") -> str:
+    """
+    Build a full URL from a netloc.
+    """
+    if netloc.count(":") >= 2 and "@" not in netloc and "[" not in netloc:
+        # It must be a bare IPv6 address, so wrap it with brackets.
+        netloc = f"[{netloc}]"
+    return f"{scheme}://{netloc}"
+
+
+def parse_netloc(netloc: str) -> tuple[str, int | None]:
+    """
+    Return the host-port pair from a netloc.
+    """
+    url = build_url_from_netloc(netloc)
+    parsed = parse.urlparse(url)
+    return parsed.hostname or "", parsed.port
