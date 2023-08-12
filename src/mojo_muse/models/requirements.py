@@ -1,4 +1,5 @@
 import functools
+import posixpath
 import re
 import secrets
 from abc import ABC, abstractmethod
@@ -128,7 +129,47 @@ class BaseVcsMuseRequirement(BaseMuseRequirement):
 
 
 class BaseFileMuseRequirement(BaseMuseRequirement):
-    pass
+    url: str = ""
+    path: Path | None = None
+    subdirectory: str | None = None
+
+    def __init__(
+        self,
+        name: str,
+        marker: Marker | None = None,
+        extras: list[str] | None = None,
+        specifier: SpecifierSet | None = None,
+        prerelease: bool = False,
+        url: str = "",
+        path: Path | None = None,
+        subdirectory: str | None = None,
+    ) -> None:
+        super().__init__(name, marker, extras, specifier, prerelease)
+        self.url = url
+        self.path = Path(path)
+        self.subdirectory = subdirectory
+
+    @property
+    def is_local(self) -> bool:
+        return self.path and self.path.exists() or False
+
+    @property
+    def str_path(self) -> str | None:
+        if not self.path:
+            return None
+        if self.path.is_absolute():
+            try:
+                result = self.path.relative_to(Path.cwd()).as_posix()
+            except ValueError:
+                return self.path.as_posix()
+        else:
+            result = self.path.as_posix()
+        result = posixpath.normpath(result)
+        if not result.startswith(("./", "../")):
+            result = "./" + result
+        if result.startswith("./../"):
+            result = result[2:]
+        return result
 
 
 #### ABC End, Concrete Classes Start #################################
