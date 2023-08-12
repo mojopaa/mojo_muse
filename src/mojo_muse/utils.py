@@ -4,8 +4,9 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
-from typing import Iterator
+from typing import IO, Iterator
 from urllib import parse
 from urllib.request import pathname2url, url2pathname
 
@@ -143,3 +144,29 @@ def parse_netloc(netloc: str) -> tuple[str, int | None]:
     url = build_url_from_netloc(netloc)
     parsed = parse.urlparse(url)
     return parsed.hostname or "", parsed.port
+
+
+@contextlib.contextmanager
+def atomic_open_for_write(
+    filename: str | Path, *, mode: str = "w", encoding: str = "utf-8"
+) -> Iterator[IO]:
+    dirname = os.path.dirname(filename)
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
+    fd, name = tempfile.mkstemp(prefix="atomic-write-", dir=dirname)
+    fp = open(fd, mode, encoding=encoding if "b" not in mode else None)
+    try:
+        yield fp
+    except Exception:
+        fp.close()
+        raise
+    else:
+        fp.close()
+        with contextlib.suppress(OSError):
+            os.unlink(filename)
+        # The tempfile is created with mode 600, we need to restore the default mode
+        # with copyfile() instead of move().
+        # See: https://github.com/pdm-project/pdm/issues/542
+        shutil.copyfile(name, str(filename))
+    finally:
+        os.unlink(name)
