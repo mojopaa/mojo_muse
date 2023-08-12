@@ -8,13 +8,22 @@ import sys
 from typing import Any, cast
 from urllib.parse import ParseResult, unquote, urlparse
 
-from unearth.utils import (
+from ..utils import (
     add_ssh_scheme_to_git_uri,
     parse_query,
     path_to_url,
     split_auth_from_url,
     url_to_path,
 )
+
+# from unearth.utils import (
+#     add_ssh_scheme_to_git_uri,
+#     parse_query,
+#     path_to_url,
+#     split_auth_from_url,
+#     url_to_path,
+# )
+
 
 if sys.version_info >= (3, 8):
     from functools import cached_property
@@ -116,8 +125,8 @@ class Link:
         )
 
     @property
-    def is_wheel(self) -> bool:
-        return self.filename.endswith(".whl")
+    def is_ring(self) -> bool:
+        return self.filename.endswith(".ring")
 
     @cached_property
     def url_without_fragment(self) -> str:

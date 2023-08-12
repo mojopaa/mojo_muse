@@ -1,5 +1,6 @@
 from .requirements import BaseMuseRequirement
 
+
 class Candidate:
     """A concrete candidate that can be downloaded and installed.
     A candidate comes from the PyPI index of a package, or from the requirement itself

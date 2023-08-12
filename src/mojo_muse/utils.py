@@ -1,11 +1,15 @@
 import contextlib
+import functools
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Iterator
 from urllib import parse
-from urllib.request import pathname2url
+from urllib.request import pathname2url, url2pathname
+
+WINDOWS = sys.platform == "win32"
 
 
 @contextlib.contextmanager
@@ -45,3 +49,78 @@ def path_to_url(path: str) -> str:
     path = os.path.normpath(os.path.abspath(path))
     url = parse.urljoin("file:", pathname2url(path))
     return url
+
+
+def url_to_path(url: str) -> str:
+    """
+    Convert a file: URL to a path.
+    """
+    assert url.startswith(
+        "file:"
+    ), f"You can only turn file: urls into filenames (not {url!r})"
+
+    _, netloc, path, _, _ = parse.urlsplit(url)
+
+    if not netloc or netloc == "localhost":
+        # According to RFC 8089, same as empty authority.
+        netloc = ""
+    elif WINDOWS:
+        # If we have a UNC path, prepend UNC share notation.
+        netloc = "\\\\" + netloc
+    else:
+        raise ValueError(
+            f"non-local file URIs are not supported on this platform: {url!r}"
+        )
+
+    path = url2pathname(netloc + path)
+
+    # On Windows, urlsplit parses the path as something like "/C:/Users/foo".
+    # This creates issues for path-related functions like io.open(), so we try
+    # to detect and strip the leading slash.
+    if (
+        WINDOWS
+        and not netloc  # Not UNC.
+        and len(path) >= 3
+        and path[0] == "/"  # Leading slash to strip.
+        and path[1].isalpha()  # Drive letter.
+        and path[2:4] in (":", ":/")  # Colon + end of string, or colon + absolute path.
+    ):
+        path = path[1:]
+
+    return path
+
+
+def add_ssh_scheme_to_git_uri(uri: str) -> str:
+    """Cleans VCS uris from pip format"""
+    # Add scheme for parsing purposes, this is also what pip does
+    if "://" not in uri:
+        uri = "ssh://" + uri
+        parsed = parse.urlparse(uri)
+        if ":" in parsed.netloc:
+            netloc, _, path_start = parsed.netloc.rpartition(":")
+            path = "/{0}{1}".format(path_start, parsed.path)
+            uri = parse.urlunparse(parsed._replace(netloc=netloc, path=path))
+    return uri
+
+
+def parse_query(query: str) -> dict[str, str]:
+    """Parse the query string of a url."""
+    return {k: v[0] for k, v in parse.parse_qs(query).items()}
+
+
+def split_auth_from_netloc(netloc: str) -> tuple[tuple[str, str | None] | None, str]:
+    auth, has_auth, host = netloc.rpartition("@")
+    if not has_auth:
+        return None, host
+    user, has_pass, password = auth.partition(":")
+    return (parse.unquote(user), parse.unquote(password) if has_pass else None), host
+
+
+@functools.lru_cache()
+def split_auth_from_url(url: str) -> tuple[tuple[str, str | None] | None, str]:
+    """Return a tuple of ((username, password), url_without_auth)"""
+    parsed = parse.urlparse(url)
+    auth, netloc = split_auth_from_netloc(parsed.netloc)
+    if auth is None:
+        return None, url
+    return auth, parse.urlunparse(parsed._replace(netloc=netloc))
