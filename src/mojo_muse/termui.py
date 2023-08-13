@@ -4,7 +4,7 @@ import enum
 import logging
 import os
 from tempfile import mktemp
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Iterator, Sequence
 
 from rich.box import ROUNDED
 from rich.console import Console
@@ -13,10 +13,7 @@ from rich.prompt import Confirm, IntPrompt, Prompt
 from rich.table import Table
 from rich.theme import Theme
 
-if TYPE_CHECKING:
-    from typing import Any, Iterator, Sequence
-
-    from mojo_muse._types import RichProtocol, Spinner, SpinnerT
+from ._types import RichProtocol, Spinner, SpinnerT
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)

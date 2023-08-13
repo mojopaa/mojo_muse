@@ -1,10 +1,18 @@
 from __future__ import annotations
 
 import dataclasses as dc
-from typing import TYPE_CHECKING, Any, Dict, List, NamedTuple, Tuple, TypeVar, Union
-
-if TYPE_CHECKING:
-    from typing import Protocol
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    NamedTuple,
+    Protocol,
+    Tuple,
+    TypedDict,
+    TypeVar,
+    Union,
+)
 
 
 @dc.dataclass
@@ -30,9 +38,9 @@ class RepositoryConfig(_RepositoryConfig):
     @property
     def password(self) -> str | None:
         if self._password is None:
-            from pdm.models.auth import keyring
+            from .auth import keyring
 
-            service = f"pdm-{self.config_prefix}-{self.name}"
+            service = f"muse-{self.config_prefix}-{self.name}"
             result = keyring.get_auth_info(service, self.username)
             if result is not None:
                 self._password = result[1]
@@ -90,30 +98,31 @@ class Package(NamedTuple):
 SearchResult = List[Package]
 
 
-if TYPE_CHECKING:
-    from typing import TypedDict
+class Comparable(Protocol):
+    def __lt__(self, __other: Any) -> bool:
+        ...
 
-    class Comparable(Protocol):
-        def __lt__(self, __other: Any) -> bool:
-            ...
 
-    SpinnerT = TypeVar("SpinnerT", bound="Spinner")
+SpinnerT = TypeVar("SpinnerT", bound="Spinner")
 
-    class Spinner(Protocol):
-        def update(self, text: str) -> None:
-            ...
 
-        def __enter__(self: SpinnerT) -> SpinnerT:
-            ...
+class Spinner(Protocol):
+    def update(self, text: str) -> None:
+        ...
 
-        def __exit__(self, *args: Any) -> None:
-            ...
+    def __enter__(self: SpinnerT) -> SpinnerT:
+        ...
 
-    class RichProtocol(Protocol):
-        def __rich__(self) -> str:
-            ...
+    def __exit__(self, *args: Any) -> None:
+        ...
 
-    class FileHash(TypedDict, total=False):
-        url: str
-        hash: str
-        file: str
+
+class RichProtocol(Protocol):
+    def __rich__(self) -> str:
+        ...
+
+
+class FileHash(TypedDict, total=False):
+    url: str
+    hash: str
+    file: str

@@ -2,6 +2,7 @@ import functools
 import posixpath
 import re
 import secrets
+import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
 
@@ -10,8 +11,9 @@ from packaging.markers import Marker
 from packaging.requirements import InvalidRequirement, Requirement
 from packaging.specifiers import SpecifierSet
 
-from ..exceptions import RequirementError
-from ..utils import path_to_url
+from ..exceptions import ExtrasWarning, RequirementError
+from ..utils import comparable_version, path_to_url
+from .markers import split_marker_extras
 from .specifiers import get_specifier
 
 VCS_SCHEMA = ("git", "hg", "svn", "bzr")
@@ -101,6 +103,17 @@ class BaseMuseRequirement(ABC):
         return isinstance(self, BaseFileMuseRequirement)
 
     @property
+    def is_pinned(self) -> bool:
+        if not self.specifier:
+            return False
+
+        if len(self.specifier) != 1:
+            return False
+
+        sp = next(iter(self.specifier))
+        return sp.operator == "===" or sp.operator == "==" and "*" not in sp.version
+
+    @property
     def project_name(self) -> str | None:
         return normalize_name(self.name, lowercase=False) if self.name else None
 
@@ -118,6 +131,19 @@ class BaseMuseRequirement(ABC):
         if self.marker:
             return f"; {self.marker!s}"
         return ""
+
+    def as_pinned_version(self, other_version: str | None):
+        """Return a new requirement with the given pinned version."""
+        if self.is_pinned or not other_version:
+            return self
+        normalized = comparable_version(other_version)
+        return self.__class__(
+            name=self.name,
+            marker=self.marker,
+            extras=self.extras,
+            prerelease=self.prerelease,
+            specifier=get_specifier(f"=={normalized}"),
+        )
 
 
 class BaseNamedMuseRequirement(BaseMuseRequirement):
@@ -144,7 +170,13 @@ class BaseFileMuseRequirement(BaseMuseRequirement):
         path: Path | None = None,
         subdirectory: str | None = None,
     ) -> None:
-        super().__init__(name, marker, extras, specifier, prerelease)
+        super().__init__(
+            name=name,
+            marker=marker,
+            extras=extras,
+            specifier=specifier,
+            prerelease=prerelease,
+        )
         self.url = url
         self.path = Path(path)
         self.subdirectory = subdirectory
@@ -152,6 +184,10 @@ class BaseFileMuseRequirement(BaseMuseRequirement):
     @property
     def is_local(self) -> bool:
         return self.path and self.path.exists() or False
+
+    @property
+    def is_local_dir(self) -> bool:
+        return self.is_local and Path(self.path).is_dir()
 
     @property
     def str_path(self) -> str | None:
@@ -274,3 +310,40 @@ def parse_requirement(line: str, editable: bool = False) -> BaseMuseRequirement:
         #     )
         pass
     return r
+
+
+def filter_requirements_with_extras(
+    project_name: str,
+    requirement_lines: list[str],
+    extras: list[str],
+    include_default: bool = False,
+) -> list[str]:
+    """Filter the requirements with extras.
+    If extras are given, return those with matching extra markers.
+    Otherwise, return those without extra markers.
+    """
+    extras = [normalize_name(e) for e in extras]
+    result: list[str] = []
+    extras_in_meta: set[str] = set()
+    for req in requirement_lines:
+        _r = parse_requirement(req)
+        if _r.marker:
+            req_extras, rest = split_marker_extras(str(_r.marker))
+            if req_extras:
+                extras_in_meta.update(req_extras)
+                _r.marker = Marker(rest) if rest else None
+        else:
+            req_extras = set()
+        if (
+            req_extras
+            and not req_extras.isdisjoint(extras)
+            or not req_extras
+            and (include_default or not extras)
+        ):
+            result.append(_r.as_line())
+
+    extras_not_found = [e for e in extras if e not in extras_in_meta]
+    if extras_not_found:
+        warnings.warn(ExtrasWarning(project_name, extras_not_found), stacklevel=2)
+
+    return result

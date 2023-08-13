@@ -7,7 +7,7 @@ from typing import Any
 from mups.utils import normalize_name
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 
-from .._types import FileHash
+from .._types import FileHash, Package
 from ..utils import cd
 from .link import Link
 from .requirements import BaseMuseRequirement

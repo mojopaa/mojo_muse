@@ -6,9 +6,11 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import IO, Iterator
+from typing import IO, Any, Iterator
 from urllib import parse
 from urllib.request import pathname2url, url2pathname
+
+from packaging.version import Version, _cmpkey
 
 WINDOWS = sys.platform == "win32"
 
@@ -170,3 +172,33 @@ def atomic_open_for_write(
         shutil.copyfile(name, str(filename))
     finally:
         os.unlink(name)
+
+
+def comparable_version(version: str) -> Version:
+    """Normalize a version to make it valid in a specifier."""
+    parsed = Version(version)
+    if parsed.local is not None:
+        # strip the local part
+        parsed._version = parsed._version._replace(local=None)
+
+        # TODO: make a PR to pdm
+        parsed._key = _cmpkey(
+            parsed._version.epoch,
+            parsed._version.release,
+            parsed._version.pre,
+            parsed._version.post,
+            parsed._version.dev,
+            parsed._version.local,
+        )
+    return parsed
+
+
+def join_list_with(items: list[Any], sep: Any) -> list[Any]:
+    new_items = []
+    for item in items:
+        new_items.extend([item, sep])
+    return new_items[:-1]  # final sep is stripped off.
+
+
+def url_without_fragments(url: str) -> str:
+    return parse.urlunparse(parse.urlparse(url)._replace(fragment=""))

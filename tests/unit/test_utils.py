@@ -1,17 +1,22 @@
 import os
 from pathlib import Path
 
+from packaging.version import Version
+
 from mojo_muse.utils import (
     add_ssh_scheme_to_git_uri,
     build_url_from_netloc,
     cd,
+    comparable_version,
     find_project_root,
+    join_list_with,
     parse_netloc,
     parse_query,
     path_to_url,
     split_auth_from_netloc,
     split_auth_from_url,
     url_to_path,
+    url_without_fragments,
 )
 
 
@@ -78,3 +83,19 @@ def test_build_url_from_netloc():
 
 def test_parse_netloc():
     assert parse_netloc("github.com") == ("github.com", None)
+
+
+def test_comparable_version():
+    assert comparable_version("1.2.3") == Version("1.2.3")
+    assert comparable_version("1.2.3a1+local1") == Version("1.2.3a1")
+
+
+def test_join_list_with():
+    assert join_list_with(["a", "b", "c"], "and") == ["a", "and", "b", "and", "c"]
+
+
+def test_url_without_fragments():
+    assert (
+        url_without_fragments("http://www.example.org/foo.html#bar")
+        == "http://www.example.org/foo.html"
+    )
