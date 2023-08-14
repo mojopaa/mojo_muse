@@ -406,7 +406,7 @@ class MuseBasicAuth(MultiDomainBasicAuth):
             self.ui.echo(
                 "The provided credentials will not be saved into the keyring.\n"
                 "You can enable this by installing keyring:\n"
-                "    [success]pdm self add keyring[/]",
+                "    [success]muse self add keyring[/]",
                 err=True,
                 style="info",
             )

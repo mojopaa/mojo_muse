@@ -221,7 +221,7 @@ class UI:
             handler: logging.Handler = logging.StreamHandler()
             handler.setLevel(LOG_LEVELS[self.verbosity])
         else:
-            file_name = mktemp(".log", f"pdm-{type_}-")
+            file_name = mktemp(".log", f"muse-{type_}-")
             handler = logging.FileHandler(file_name, encoding="utf-8")
             handler.setLevel(logging.DEBUG)
         handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
@@ -267,3 +267,11 @@ class UI:
             disable=self.verbosity >= Verbosity.DETAIL,
             **kwargs,
         )
+
+
+# Muse default ui
+ui = UI()
+
+# TODO: init ui
+# self.ui.set_verbosity(options.verbose)
+# self.ui.set_theme(project.global_config.load_theme())

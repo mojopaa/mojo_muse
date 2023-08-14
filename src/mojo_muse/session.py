@@ -238,7 +238,7 @@ class CacheControlAdapter(BaseCCAdapter):
 
 class CompatibleSerializer(Serializer):
     """We've switched the cache to SeparateBodyCache since 2.7.1, we use this serializer to
-    read the old cache. However, reading the new cache with older PDM versions will still
+    read the old cache. However, reading the new cache with older MUSE versions will still
     result in a broken cache.
     """
 
@@ -274,7 +274,7 @@ class MuseSession(MojoPISession):
 
     def _make_user_agent(self) -> str:
         return (
-            user_agent.UserAgentBuilder("pdm", __version__)
+            user_agent.UserAgentBuilder("muse", __version__)
             .include_implementation()
             .build()
         )

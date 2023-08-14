@@ -2,6 +2,15 @@ class MuseException(Exception):
     pass
 
 
+class MuseUsageError(MuseException):
+    pass
+
+
+class NoConfigError(MuseUsageError, KeyError):
+    def __str__(self) -> str:
+        return f"Not such config key: {self.args[0]!r}"
+
+
 class RequirementError(MuseException):
     pass
 
