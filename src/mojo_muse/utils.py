@@ -181,7 +181,6 @@ def comparable_version(version: str) -> Version:
         # strip the local part
         parsed._version = parsed._version._replace(local=None)
 
-        # TODO: make a PR to pdm
         parsed._key = _cmpkey(
             parsed._version.epoch,
             parsed._version.release,
