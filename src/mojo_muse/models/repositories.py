@@ -45,7 +45,6 @@ class BaseRepository(ABC):
     def __init__(
         self,
         sources: list[RepositoryConfig],
-        environment: BaseEnvironment,
         ignore_compatibility: bool = True,
     ) -> None:
         """Initialize the package manager.
@@ -57,10 +56,9 @@ class BaseRepository(ABC):
                 the current environment. Defaults to True.
         """
         self.sources = sources
-        self.environment = environment
         self.ignore_compatibility = ignore_compatibility
-        self._candidate_info_cache = environment.project.make_candidate_info_cache()
-        self._hash_cache = environment.project.make_hash_cache()
+        # self._candidate_info_cache = environment.project.make_candidate_info_cache()
+        # self._hash_cache = environment.project.make_hash_cache()
 
     @abstractmethod
     def dependency_generators(self) -> Iterable[Callable[[Candidate], CandidateInfo]]:
@@ -89,70 +87,72 @@ class BaseRepository(ABC):
         """Get matching sources based on the index attribute."""
         return self.sources
 
-    def get_dependencies(
-        self, candidate: Candidate
-    ) -> tuple[list[BaseMuseRequirement], SpecifierSet, str]:
-        """Get (dependencies, python_specifier, summary) of the candidate."""
-        requires_mojo, summary = "", ""
-        requirements: list[str] = []
-        last_ext_info = None
-        for getter in self.dependency_generators():
-            try:
-                requirements, requires_mojo, summary = getter(candidate)
-            except CandidateInfoNotFound:
-                last_ext_info = sys.exc_info()
-                continue
-            break
-        else:
-            if last_ext_info is not None:
-                raise last_ext_info[1].with_traceback(last_ext_info[2])  # type: ignore[union-attr]
-        reqs: list[BaseMuseRequirement] = []
-        for line in requirements:
-            if line.startswith("-e "):
-                reqs.append(parse_requirement(line[3:], True))
-            else:
-                reqs.append(parse_requirement(line))
-        if candidate.req.extras:
-            # XXX: If the requirement has extras, add the original candidate
-            # (without extras) as its dependency. This ensures the same package with
-            # different extras resolve to the same version.
-            self_req = dataclasses.replace(
-                candidate.req.as_pinned_version(candidate.version),
-                extras=None,
-                marker=None,
-            )
-            reqs.append(self_req)
-        # Store the metadata on the candidate for caching
-        candidate.requires_mojo = requires_mojo
-        candidate.summary = summary
-        if not self.ignore_compatibility:
-            pep508_env = self.environment.marker_environment
-            reqs = [
-                req for req in reqs if not req.marker or req.marker.evaluate(pep508_env)
-            ]
-        return reqs, SpecifierSet(requires_mojo), summary
+    # def get_dependencies(
+    #     self, candidate: Candidate
+    # ) -> tuple[list[BaseMuseRequirement], SpecifierSet, str]:
+    #     """Get (dependencies, python_specifier, summary) of the candidate."""
+    #     requires_mojo, summary = "", ""
+    #     requirements: list[str] = []
+    #     last_ext_info = None
+    #     for getter in self.dependency_generators():
+    #         try:
+    #             requirements, requires_mojo, summary = getter(candidate)
+    #         except CandidateInfoNotFound:
+    #             last_ext_info = sys.exc_info()
+    #             continue
+    #         break
+    #     else:
+    #         if last_ext_info is not None:
+    #             raise last_ext_info[1].with_traceback(last_ext_info[2])  # type: ignore[union-attr]
+    #     reqs: list[BaseMuseRequirement] = []
+    #     for line in requirements:
+    #         if line.startswith("-e "):
+    #             reqs.append(parse_requirement(line[3:], True))
+    #         else:
+    #             reqs.append(parse_requirement(line))
+    #     if candidate.req.extras:
+    #         # XXX: If the requirement has extras, add the original candidate
+    #         # (without extras) as its dependency. This ensures the same package with
+    #         # different extras resolve to the same version.
+    #         self_req = dataclasses.replace(
+    #             candidate.req.as_pinned_version(candidate.version),
+    #             extras=None,
+    #             marker=None,
+    #         )
+    #         reqs.append(self_req)
+    #     # Store the metadata on the candidate for caching
+    #     candidate.requires_mojo = requires_mojo
+    #     candidate.summary = summary
+    #     if not self.ignore_compatibility:
+    #         pep508_env = self.environment.marker_environment
+    #         reqs = [
+    #             req for req in reqs if not req.marker or req.marker.evaluate(pep508_env)
+    #         ]
+    #     return reqs, SpecifierSet(requires_mojo), summary
 
-    def is_this_package(self, requirement: BaseMuseRequirement) -> bool:
-        """Whether the requirement is the same as this package"""
-        project = self.environment.project
-        return (
-            requirement.is_named
-            and project.name is not None
-            and requirement.key == normalize_name(project.name)
-        )
+    # def is_this_package(self, requirement: BaseMuseRequirement) -> bool:
+    # TODO: move to environment or project
+    #     """Whether the requirement is the same as this package"""
+    #     project = self.environment.project
+    #     return (
+    #         requirement.is_named
+    #         and project.name is not None
+    #         and requirement.key == normalize_name(project.name)
+    #     )
 
-    def make_this_candidate(self, requirement: BaseMuseRequirement) -> Candidate:
-        """Make a candidate for this package.
-        In this case the finder will look for a candidate from the package sources
-        """
-        from .link import Link
+    # def make_this_candidate(self, requirement: BaseMuseRequirement) -> Candidate:
+    # TODO: move to environment or project
+    #     """Make a candidate for this package.
+    #     In this case the finder will look for a candidate from the package sources
+    #     """
+    #     from .link import Link
 
-        project = self.environment.project
-        assert project.name
-        link = Link.from_path(project.root)
-        candidate = make_candidate(requirement, project.name, link=link)
-        candidate.prepare(self.environment).metadata
-        return candidate
+    #     project = self.environment.project
+    #     assert project.name
+    #     link = Link.from_path(project.root)
+    #     candidate = make_candidate(requirement, project.name, link=link)
+    #     candidate.prepare(self.environment).metadata
+    #     return candidate
 
     def find_candidates(
         self,
@@ -459,10 +459,9 @@ class LockedRepository(BaseRepository):
         self,
         lockfile: Mapping[str, Any],
         sources: list[RepositoryConfig],
-        environment: BaseEnvironment,
     ) -> None:
         super().__init__(
-            sources=sources, environment=environment, ignore_compatibility=False
+            sources=sources, ignore_compatibility=False
         )
         self.packages: dict[CandidateKey, Candidate] = {}
         self.candidate_info: dict[CandidateKey, CandidateInfo] = {}
@@ -473,37 +472,38 @@ class LockedRepository(BaseRepository):
         return {can.req.identify(): can for can in self.packages.values()}
 
     def _read_lockfile(self, lockfile: Mapping[str, Any]) -> None:
-        root = self.environment.project.root
-        with cd(root):
-            for package in lockfile.get("package", []):
-                version = package.get("version")
-                if version:
-                    package["version"] = f"=={version}"
-                package_name = package.pop("name")
-                req_dict = {
-                    k: v
-                    for k, v in package.items()
-                    if k not in ("dependencies", "requires_mojo", "summary", "files")
-                }
-                req = MuseRequirement.from_req_dict(package_name, req_dict)
-                if req.is_file_or_url and req.path and not req.url:  # type: ignore[attr-defined]
-                    req.url = path_to_url(posixpath.join(root, req.path))  # type: ignore[attr-defined]
-                can = make_candidate(req, name=package_name, version=version)
-                can.hashes = package.get("files", [])
-                can_id = self._identify_candidate(can)
-                self.packages[can_id] = can
-                candidate_info: CandidateInfo = (
-                    package.get("dependencies", []),
-                    package.get("requires_python", ""),
-                    package.get("summary", ""),
-                )
-                self.candidate_info[can_id] = candidate_info
+        # root = self.environment.project.root
+        # with cd(root):
+
+        for package in lockfile.get("package", []):
+            version = package.get("version")
+            if version:
+                package["version"] = f"=={version}"
+            package_name = package.pop("name")
+            req_dict = {
+                k: v
+                for k, v in package.items()
+                if k not in ("dependencies", "requires_mojo", "summary", "files")
+            }
+            req = MuseRequirement.from_req_dict(package_name, req_dict)
+            if req.is_file_or_url and req.path and not req.url:  # type: ignore[attr-defined]
+                req.url = path_to_url(posixpath.join(root, req.path))  # type: ignore[attr-defined]
+            can = make_candidate(req, name=package_name, version=version)
+            can.hashes = package.get("files", [])
+            can_id = self._identify_candidate(can)
+            self.packages[can_id] = can
+            candidate_info: CandidateInfo = (
+                package.get("dependencies", []),
+                package.get("requires_python", ""),
+                package.get("summary", ""),
+            )
+            self.candidate_info[can_id] = candidate_info
 
     def _identify_candidate(self, candidate: Candidate) -> CandidateKey:
         url: str | None = None
         if candidate.link is not None:
             url = candidate.link.url_without_fragment
-            url = self.environment.project.backend.expand_line(cast(str, url))
+            # url = self.environment.project.backend.expand_line(cast(str, url))
             if url.startswith("file://"):
                 path = posixpath.normpath(url_to_path(url))
                 url = path_to_url(path)
