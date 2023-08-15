@@ -145,6 +145,16 @@ class BaseMuseRequirement(ABC):
             specifier=get_specifier(f"=={normalized}"),
         )
 
+    def matches(self, line: str) -> bool:
+        """Return whether the passed in PEP 508 string
+        is the same requirement as this one.
+        """
+        if line.strip().startswith("-e "):
+            req = parse_requirement(line.split("-e ", 1)[-1], True)
+        else:
+            req = parse_requirement(line, False)
+        return self.key == req.key
+
 
 class BaseNamedMuseRequirement(BaseMuseRequirement):
     pass

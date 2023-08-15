@@ -460,9 +460,7 @@ class LockedRepository(BaseRepository):
         lockfile: Mapping[str, Any],
         sources: list[RepositoryConfig],
     ) -> None:
-        super().__init__(
-            sources=sources, ignore_compatibility=False
-        )
+        super().__init__(sources=sources, ignore_compatibility=False)
         self.packages: dict[CandidateKey, Candidate] = {}
         self.candidate_info: dict[CandidateKey, CandidateInfo] = {}
         self._read_lockfile(lockfile)

@@ -8,6 +8,7 @@ from mojo_muse.utils import (
     build_url_from_netloc,
     cd,
     comparable_version,
+    expand_env_vars_in_auth,
     find_project_root,
     join_list_with,
     parse_netloc,
@@ -99,3 +100,10 @@ def test_url_without_fragments():
         url_without_fragments("http://www.example.org/foo.html#bar")
         == "http://www.example.org/foo.html"
     )
+
+
+def test_expand_env_vars_in_auth(monkeypatch):
+    envs = {"HELLO": "world"}
+    monkeypatch.setattr(os, "environ", envs)
+
+    assert expand_env_vars_in_auth("http://${HELLO}@world") == "http://world@world"

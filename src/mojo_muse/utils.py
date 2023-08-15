@@ -1,11 +1,13 @@
 import contextlib
 import functools
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from re import Match
 from typing import IO, Any, Iterator
 from urllib import parse
 from urllib.request import pathname2url, url2pathname
@@ -201,3 +203,29 @@ def join_list_with(items: list[Any], sep: Any) -> list[Any]:
 
 def url_without_fragments(url: str) -> str:
     return parse.urlunparse(parse.urlparse(url)._replace(fragment=""))
+
+
+def expand_env_vars(credential: str, quote: bool = False) -> str:
+    """A safe implementation of env var substitution.
+    It only supports the following forms:
+
+        ${ENV_VAR}
+
+    Neither $ENV_VAR and %ENV_VAR is not supported.
+    """
+
+    def replace_func(match: Match) -> str:
+        rv = os.getenv(match.group(1), match.group(0))
+        return parse.quote(rv) if quote else rv
+
+    return re.sub(r"\$\{(.+?)\}", replace_func, credential)
+
+
+def expand_env_vars_in_auth(url: str) -> str:
+    """In-place expand the auth in url"""
+    scheme, netloc, path, params, query, fragment = parse.urlparse(url)
+    if "@" in netloc:
+        auth, rest = netloc.split("@", 1)
+        auth = expand_env_vars(auth, True)
+        netloc = "@".join([auth, rest])
+    return parse.urlunparse((scheme, netloc, path, params, query, fragment))
