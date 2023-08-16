@@ -445,3 +445,24 @@ class Keyring:
 
 
 keyring = Keyring()
+
+
+class RepositoryConfigWithPassword(RepositoryConfig):
+    def __init__(self, *args: Any, password: str | None = None, **kwargs: Any) -> None:
+        kwargs["_password"] = password
+        super().__init__(*args, **kwargs)
+
+    @property
+    def password(self) -> str | None:
+        if self._password is None:
+            from .auth import keyring
+
+            service = f"muse-{self.config_prefix}-{self.name}"
+            result = keyring.get_auth_info(service, self.username)
+            if result is not None:
+                self._password = result[1]
+        return self._password
+
+    @password.setter
+    def password(self, value: str) -> None:
+        self._password = value

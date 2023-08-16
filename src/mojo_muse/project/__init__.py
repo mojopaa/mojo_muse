@@ -432,11 +432,11 @@ class Project:
     @property
     def backend(self) -> BuildBackend:
         return get_backend_by_spec(self.pyproject.build_system)(self.root)
-    
+
     @property
     def cache_dir(self) -> Path:
         return Path(self.config.get("cache_dir", ""))
-    
+
     def cache(self, name: str) -> Path:
         path = self.cache_dir / name
         try:
@@ -445,6 +445,6 @@ class Project:
             # The path could be not accessible
             pass
         return path
-    
+
     def make_hash_cache(self) -> HashCache:
         return HashCache(directory=self.cache("hashes"))

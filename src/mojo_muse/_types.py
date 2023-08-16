@@ -31,24 +31,10 @@ class _RepositoryConfig:
 
 
 class RepositoryConfig(_RepositoryConfig):
-    def __init__(self, *args: Any, password: str | None = None, **kwargs: Any) -> None:
-        kwargs["_password"] = password
+    """Removed auth.py deps. use auth.RepositoryConfigWithPassword instead if password is required"""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-
-    # @property
-    # def password(self) -> str | None:
-    #     if self._password is None:
-    #         from .auth import keyring
-
-    #         service = f"muse-{self.config_prefix}-{self.name}"
-    #         result = keyring.get_auth_info(service, self.username)
-    #         if result is not None:
-    #             self._password = result[1]
-    #     return self._password
-
-    # @password.setter
-    # def password(self, value: str) -> None:
-    #     self._password = value
 
     def passive_update(
         self, other: RepositoryConfig | None = None, **kwargs: Any
