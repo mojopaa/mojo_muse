@@ -8,8 +8,10 @@ from mojo_muse.utils import (
     build_url_from_netloc,
     cd,
     comparable_version,
+    compare_urls,
     expand_env_vars_in_auth,
     find_project_root,
+    get_rev_from_url,
     join_list_with,
     parse_netloc,
     parse_query,
@@ -107,3 +109,16 @@ def test_expand_env_vars_in_auth(monkeypatch):
     monkeypatch.setattr(os, "environ", envs)
 
     assert expand_env_vars_in_auth("http://${HELLO}@world") == "http://world@world"
+
+
+def test_compare_urls():
+    assert compare_urls("https://github.com", "https://github.com")
+
+
+def test_get_rev_from_url():
+    assert (
+        get_rev_from_url(
+            "git+https://github.com/python/mypy@effd970ad1e8bb09fd2a18634339e1d043a83400#egg=mypy"
+        )
+        == "effd970ad1e8bb09fd2a18634339e1d043a83400"
+    )

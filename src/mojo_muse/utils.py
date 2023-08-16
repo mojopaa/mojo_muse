@@ -229,3 +229,20 @@ def expand_env_vars_in_auth(url: str) -> str:
         auth = expand_env_vars(auth, True)
         netloc = "@".join([auth, rest])
     return parse.urlunparse((scheme, netloc, path, params, query, fragment))
+
+
+@functools.lru_cache()
+def compare_urls(left: str, right: str) -> bool:
+    """
+    Compare two urls, ignoring the ending slash.
+    """
+    return parse.unquote(left).rstrip("/") == parse.unquote(right).rstrip("/")
+
+
+def get_rev_from_url(url: str) -> str:
+    """Get the rev part from the VCS URL."""
+    path = parse.urlparse(url).path
+    if "@" in path:
+        _, rev = path.rsplit("@", 1)
+        return rev
+    return ""

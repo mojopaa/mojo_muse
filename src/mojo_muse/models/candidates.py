@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import dataclasses
+import importlib.metadata as im
+from abc import ABC, abstractmethod
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -51,7 +54,7 @@ class Candidate:
         self.hashes: list[FileHash] = []
 
         self._requires_python: str | None = None
-        self._prepared: PreparedCandidate | None = None
+        self._prepared: BasePreparedCandidate | None = None
 
     def identify(self) -> str:
         return self.req.identify()
@@ -66,7 +69,7 @@ class Candidate:
         return (self.identify(), self.version)
 
     @property
-    def prepared(self) -> PreparedCandidate | None:
+    def prepared(self) -> BasePreparedCandidate | None:
         return self._prepared
 
     def __eq__(self, other) -> bool:
@@ -161,13 +164,130 @@ class Candidate:
         """Format for output."""
         return f"[req]{self.name}[/] [warning]{self.version}[/]"
 
-    def prepare(self, environment: BaseEnvironment) -> PreparedCandidate:
-        """Prepare the candidate for installation."""
-        if self._prepared is None:
-            self._prepared = PreparedCandidate(self, environment)
-        return self._prepared
+    # def prepare(self, environment: BaseEnvironment) -> BasePreparedCandidate:
+    # TODO: move to project
+    #     """Prepare the candidate for installation."""
+    #     if self._prepared is None:
+    #         self._prepared = BasePreparedCandidate(self, environment)
+    #     return self._prepared
 
     # TODO: PreparedCandidate
+
+
+def _filter_none(data: dict[str, Any]) -> dict[str, Any]:
+    """Return a new dict without None values"""
+    return {k: v for k, v in data.items() if v is not None}
+
+
+class BasePreparedCandidate(ABC):
+    def __init__(self, candidate: Candidate) -> None:
+        self.candidate = candidate
+        self.req = candidate.req
+
+        self.wheel: Path | None = None
+        self.link = self._replace_url_vars(self.candidate.link)
+
+        self._source_dir: Path | None = None
+        self._unpacked_dir: Path | None = None
+        self._metadata_dir: str | None = None
+        self._metadata: im.Distribution | None = None
+
+        if self.link is not None and self.link.is_file and self.link.file_path.is_dir():
+            self._source_dir = self.link.file_path
+            self._unpacked_dir = self._source_dir / (self.link.subdirectory or "")
+
+    def _replace_url_vars(self, link: Link | None) -> Link | None:
+        if link is None:
+            return None
+        url = link.normalized
+        return dataclasses.replace(link, url=url)
+
+    @abstractmethod
+    def revision(self) -> str:
+        pass
+
+    @abstractmethod
+    def direct_url(self) -> dict[str, Any] | None:
+        pass
+
+    @abstractmethod
+    def build(self) -> Path:
+        pass
+
+    @abstractmethod
+    def _wheel_compatible(self, wheel_file: str, allow_all: bool = False) -> bool:
+        pass
+
+    @abstractmethod
+    def obtain(self, allow_all: bool = False, unpack: bool = True) -> None:
+        """Fetches the link of the candidate and unpacks it locally if necessary.
+
+        Args:
+            allow_all (bool, optional): If True, don't validate the wheel tag nor hashes. Defaults to False.
+            unpack (bool, optional): Whether to download and unpack the link if it's not local. Defaults to True.
+
+        Returns:
+            None
+        """
+
+    @abstractmethod
+    def _unpack(self, validate_hashes: bool = False) -> None:
+        pass
+
+    @abstractmethod
+    def prepare_metadata(self, force_build: bool = False) -> im.Distribution:
+        pass
+
+    @abstractmethod
+    def _get_metadata_from_metadata_link(
+        self, link: Link, medata_hash: bool | dict[str, str] | None
+    ) -> im.Distribution | None:
+        pass
+
+    @abstractmethod
+    def _get_metadata_from_project(
+        self, pyproject_toml: Path
+    ) -> im.Distribution | None:
+        pass
+
+    @abstractmethod
+    def _get_metadata_from_build(
+        self, source_dir: Path, metadata_parent: str
+    ) -> im.Distribution:
+        pass
+
+    @property
+    @abstractmethod
+    def metadata(self) -> im.Distribution:
+        pass
+
+    @abstractmethod
+    def get_dependencies_from_metadata(self) -> list[str]:
+        pass
+
+    @abstractmethod
+    def should_cache(self) -> bool:
+        pass
+
+    @abstractmethod
+    def _get_cached_wheel(self) -> Path | None:
+        pass
+
+    @abstractmethod
+    def _get_build_dir(self) -> str:
+        pass
+
+    @abstractmethod
+    def _get_wheel_dir(self) -> str:
+        pass
+
+    def _get_metadata_from_ring(
+        self, ring: Path, metadata_parent: str
+    ) -> im.Distribution:
+        # Get metadata from METADATA inside the wheel
+        # TODO: change to ring
+        self._metadata_dir = _get_wheel_metadata_from_wheel(ring, metadata_parent)
+        return im.PathDistribution(Path(self._metadata_dir))  # TODO: use tomlkit
 
 
 @lru_cache(maxsize=None)

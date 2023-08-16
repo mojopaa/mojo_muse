@@ -21,14 +21,18 @@ from .._types import RepositoryConfig
 from ..auth import MuseBasicAuth
 from ..exceptions import MuseUsageError, deprecation_warning
 from ..models.caches import HashCache
-from ..models.candidates import Candidate, make_candidate
+from ..models.candidates import (BasePreparedCandidate, Candidate,
+                                 make_candidate)
 from ..models.link import Link
-from ..models.repositories import BaseRepository, LockedRepository, MojoPIRepository
-from ..models.requirements import BaseMuseRequirement, parse_requirement, strip_extras
-from ..resolver.providers import BaseProvider, EagerUpdateProvider, ReusePinProvider
+from ..models.repositories import (BaseRepository, LockedRepository,
+                                   MojoPIRepository)
+from ..models.requirements import (BaseMuseRequirement, parse_requirement,
+                                   strip_extras)
+from ..resolver.providers import (BaseProvider, EagerUpdateProvider,
+                                  ReusePinProvider)
 from ..resolver.reporters import BaseReporter, SpinnerReporter
 from ..termui import UI, SilentSpinner, Spinner, ui
-from ..utils import cd, expand_env_vars_in_auth, find_project_root, path_to_url
+from ..utils import cd, expand_env_vars_in_auth, find_project_root, path_to_url, get_rev_from_url
 from .config import Config
 from .lockfile import Lockfile
 from .project_file import MojoProject
@@ -448,3 +452,29 @@ class Project:
 
     def make_hash_cache(self) -> HashCache:
         return HashCache(directory=self.cache("hashes"))
+
+class PreparedCandidate(BasePreparedCandidate):
+
+    @cached_property
+    def revision(self) -> str:
+        from ..models.vcs import vcs_support
+
+        if not (self._source_dir and os.path.exists(self._source_dir)):
+            # It happens because the cached wheel is hit and the source code isn't
+            # pulled to local. In this case the link url must contain the full commit
+            # hash which can be taken as the revision safely.
+            # See more info at https://github.com/pdm-project/pdm/issues/349
+            rev = get_rev_from_url(self.candidate.link.url)  # type: ignore[union-attr]
+            if rev:
+                return rev
+        assert isinstance(self.req, VcsRequirement)  # TODO
+        return vcs_support.get_backend(self.req.vcs, self.environment.project.core.ui.verbosity).get_revision(
+            cast(Path, self._source_dir)
+        )
+
+
+def prepare(candidate: Candidate) -> PreparedCandidate:
+    """Prepare the candidate for installation."""
+    if candidate._prepared is None:
+        candidate._prepared = PreparedCandidate(candidate)
+    return candidate._prepared

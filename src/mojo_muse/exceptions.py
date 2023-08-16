@@ -46,3 +46,16 @@ def deprecation_warning(
         if Version(__version__) >= Version(raise_since):
             raise FutureWarning(message)
     warnings.warn(message, FutureWarning, stacklevel=stacklevel + 1)
+
+
+# vcs module
+class URLError(ValueError):
+    pass
+
+
+class VCSBackendError(URLError):
+    pass
+
+
+class UnpackError(RuntimeError):
+    pass
