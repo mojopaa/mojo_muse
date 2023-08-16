@@ -12,6 +12,7 @@ from mojo_muse.utils import (
     expand_env_vars_in_auth,
     find_project_root,
     get_rev_from_url,
+    is_url,
     join_list_with,
     parse_netloc,
     parse_query,
@@ -122,3 +123,8 @@ def test_get_rev_from_url():
         )
         == "effd970ad1e8bb09fd2a18634339e1d043a83400"
     )
+
+
+def test_is_url():
+    assert is_url("http://github.com")
+    assert is_url("asdf") is False

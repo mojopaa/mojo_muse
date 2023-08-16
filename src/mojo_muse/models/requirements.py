@@ -1,18 +1,22 @@
 import functools
+import os
 import posixpath
 import re
 import secrets
 import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import Any, cast
+from urllib.parse import unquote
 
-from mups import normalize_name
+from mups import normalize_name, parse_ring_filename, parse_sdist_filename
 from packaging.markers import Marker
 from packaging.requirements import InvalidRequirement, Requirement
 from packaging.specifiers import SpecifierSet
 
+from .._types import RequirementDict
 from ..exceptions import ExtrasWarning, RequirementError
-from ..utils import comparable_version, path_to_url
+from ..utils import comparable_version, path_to_url, url_without_fragments
 from .markers import split_marker_extras
 from .specifiers import get_specifier
 
@@ -43,7 +47,7 @@ class BaseMuseRequirement(ABC):
     marker: Marker | str | None = None
     extras: list[str] | None = None
     specifier: SpecifierSet | None = None
-    # editable: bool = False  # Not needed for now.
+    editable: bool = False  # Not needed for now.
     prerelease: bool = False
 
     def __init__(
@@ -155,6 +159,16 @@ class BaseMuseRequirement(ABC):
             req = parse_requirement(line, False)
         return self.key == req.key
 
+    def _hash_key(self) -> tuple:
+        return (
+            self.key,
+            frozenset(self.extras) if self.extras else None,
+            str(self.marker) if self.marker else None,
+        )
+
+    def __hash__(self) -> int:
+        return hash(self._hash_key())
+
 
 class BaseNamedMuseRequirement(BaseMuseRequirement):
     pass
@@ -217,6 +231,50 @@ class BaseFileMuseRequirement(BaseMuseRequirement):
             result = result[2:]
         return result
 
+    def get_full_url(self) -> str:
+        return url_without_fragments(self.url)
+
+    def _hash_key(self) -> tuple:
+        return (*super()._hash_key(), self.get_full_url(), self.editable)
+
+    def guess_name(self) -> str | None:
+        filename = os.path.basename(unquote(url_without_fragments(self.url))).rsplit(
+            "@", 1
+        )[0]
+        if self.is_vcs:
+            if self.vcs == "git":  # type: ignore[attr-defined]
+                name = filename
+                if name.endswith(".git"):
+                    name = name[:-4]
+                return name
+            elif self.vcs == "hg":  # type: ignore[attr-defined]
+                return filename
+            else:  # svn and bzr
+                name, in_branch, _ = filename.rpartition("/branches/")
+                if not in_branch and name.endswith("/trunk"):
+                    return name[:-6]
+                return name
+        elif filename.endswith(".ring"):
+            return parse_ring_filename(filename)[0]
+        else:
+            try:
+                return parse_sdist_filename(filename)[0]
+            except ValueError:
+                # match = _egg_info_re.match(filename)
+                # # Filename is like `<name>-<version>.tar.gz`, where name will be
+                # # extracted and version will be left to be determined from
+                # # the metadata.
+                # if match:
+                #     return match.group(1)
+                pass  # TODO: double check
+        return None
+
+    # @classmethod
+    # def create(cls: type[T], **kwargs: Any) -> T:
+    #     if kwargs.get("path"):
+    #         kwargs["path"] = Path(kwargs["path"])
+    #     return super().create(**kwargs)
+
 
 #### ABC End, Concrete Classes Start #################################
 
@@ -240,6 +298,19 @@ class MuseRequirement(BaseMuseRequirement):
         else:
             return NamedMuseRequirement(**kwargs)  # type: ignore[arg-type]
 
+    @classmethod
+    def from_req_dict(cls, name: str, req_dict: RequirementDict) -> Requirement:
+        if isinstance(req_dict, str):  # Version specifier only.
+            return NamedMuseRequirement(name=name, specifier=get_specifier(req_dict))
+        for vcs in VCS_SCHEMA:
+            if vcs in req_dict:
+                repo = cast(str, req_dict.pop(vcs, None))
+                url = f"{vcs}+{repo}"
+                return VcsMuseRequirement(name=name, vcs=vcs, url=url, **req_dict)
+        if "path" in req_dict or "url" in req_dict:
+            return FileMuseRequirement(name=name, **req_dict)
+        return NamedMuseRequirement(name=name, **req_dict)
+
     def as_line(self) -> str:
         extras = f"[{','.join(sorted(self.extras))}]" if self.extras else ""
         return (
@@ -260,7 +331,28 @@ class VcsMuseRequirement(BaseVcsMuseRequirement):
 
 
 class FileMuseRequirement(BaseFileMuseRequirement):
-    pass
+    def as_line(self) -> str:
+        project_name = f"{self.project_name}" if self.project_name else ""
+        extras = (
+            f"[{','.join(sorted(self.extras))}]"
+            if self.extras and self.project_name
+            else ""
+        )
+        marker = self._format_marker()
+        if marker:
+            marker = f" {marker}"
+        url = self.get_full_url()
+        fragments = []
+        if self.subdirectory:
+            fragments.append(f"subdirectory={self.subdirectory}")
+        if self.editable:
+            if project_name:
+                fragments.insert(0, f"egg={project_name}{extras}")
+            fragment_str = ("#" + "&".join(fragments)) if fragments else ""
+            return f"-e {url}{fragment_str}{marker}"
+        delimiter = " @ " if project_name else ""
+        fragment_str = ("#" + "&".join(fragments)) if fragments else ""
+        return f"{project_name}{extras}{delimiter}{url}{fragment_str}{marker}"
 
 
 @functools.lru_cache(maxsize=None)

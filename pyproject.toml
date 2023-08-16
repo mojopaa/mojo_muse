@@ -14,6 +14,7 @@ dependencies = [
     "requests-toolbelt>=1.0.0",
     "CacheControl>=0.13.1",
     "platformdirs>=3.10.0",
+    "resolvelib>=1.0.1",
 ]
 requires-python = ">=3.10"
 readme = "README.md"

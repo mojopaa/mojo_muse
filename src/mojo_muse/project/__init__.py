@@ -21,18 +21,20 @@ from .._types import RepositoryConfig
 from ..auth import MuseBasicAuth
 from ..exceptions import MuseUsageError, deprecation_warning
 from ..models.caches import HashCache
-from ..models.candidates import (BasePreparedCandidate, Candidate,
-                                 make_candidate)
+from ..models.candidates import BasePreparedCandidate, Candidate, make_candidate
 from ..models.link import Link
-from ..models.repositories import (BaseRepository, LockedRepository,
-                                   MojoPIRepository)
-from ..models.requirements import (BaseMuseRequirement, parse_requirement,
-                                   strip_extras)
-from ..resolver.providers import (BaseProvider, EagerUpdateProvider,
-                                  ReusePinProvider)
+from ..models.repositories import BaseRepository, LockedRepository, MojoPIRepository
+from ..models.requirements import BaseMuseRequirement, parse_requirement, strip_extras
+from ..resolver.providers import BaseProvider, EagerUpdateProvider, ReusePinProvider
 from ..resolver.reporters import BaseReporter, SpinnerReporter
 from ..termui import UI, SilentSpinner, Spinner, ui
-from ..utils import cd, expand_env_vars_in_auth, find_project_root, path_to_url, get_rev_from_url
+from ..utils import (
+    cd,
+    expand_env_vars_in_auth,
+    find_project_root,
+    get_rev_from_url,
+    path_to_url,
+)
 from .config import Config
 from .lockfile import Lockfile
 from .project_file import MojoProject
@@ -453,8 +455,8 @@ class Project:
     def make_hash_cache(self) -> HashCache:
         return HashCache(directory=self.cache("hashes"))
 
-class PreparedCandidate(BasePreparedCandidate):
 
+class PreparedCandidate(BasePreparedCandidate):
     @cached_property
     def revision(self) -> str:
         from ..models.vcs import vcs_support
@@ -468,9 +470,9 @@ class PreparedCandidate(BasePreparedCandidate):
             if rev:
                 return rev
         assert isinstance(self.req, VcsRequirement)  # TODO
-        return vcs_support.get_backend(self.req.vcs, self.environment.project.core.ui.verbosity).get_revision(
-            cast(Path, self._source_dir)
-        )
+        return vcs_support.get_backend(
+            self.req.vcs, self.environment.project.core.ui.verbosity
+        ).get_revision(cast(Path, self._source_dir))
 
 
 def prepare(candidate: Candidate) -> PreparedCandidate:

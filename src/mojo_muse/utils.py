@@ -246,3 +246,8 @@ def get_rev_from_url(url: str) -> str:
         _, rev = path.rsplit("@", 1)
         return rev
     return ""
+
+
+def is_url(url: str) -> bool:
+    """Check if the given string is a URL"""
+    return bool(parse.urlparse(url).scheme)
