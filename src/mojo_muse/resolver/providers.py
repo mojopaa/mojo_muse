@@ -2,6 +2,7 @@ import itertools
 import os
 from typing import Callable, Iterable, Iterator, Mapping, Sequence, cast
 
+from mups import normalize_name
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from resolvelib import AbstractProvider
 from resolvelib.resolvers import RequirementInformation
@@ -15,8 +16,14 @@ from ..models.requirements import (
     parse_requirement,
     strip_extras,
 )
+from ..project import Project
 from ..utils import is_url, url_without_fragments
-from .mojo import MojoRequirement, find_mojo_matches, is_mojo_satisfied_by
+from .mojo import (
+    MojoCandidate,
+    MojoRequirement,
+    find_mojo_matches,
+    is_mojo_satisfied_by,
+)
 
 
 class BaseProvider(AbstractProvider):
@@ -195,7 +202,7 @@ class BaseProvider(AbstractProvider):
                 return can_req.vcs == requirement.vcs and can_req.repo == requirement.repo  # type: ignore[attr-defined]
             return self._compare_file_reqs(requirement, can_req)  # type: ignore[arg-type]
         version = candidate.version
-        this_name = self.repository.environment.project.name
+        this_name = self.repository.environment.project.name  # TODO
         if version is None or candidate.name == this_name:
             # This should be a URL candidate or self package, consider it to be matching
             return True
@@ -208,23 +215,27 @@ class BaseProvider(AbstractProvider):
             version, allow_prereleases
         )
 
-    def get_dependencies(self, candidate: Candidate) -> list[BaseMuseRequirement]:
-        if isinstance(candidate, PythonCandidate):
+    def get_dependencies(
+        self, candidate: Candidate
+    ) -> list[BaseMuseRequirement]:  # TODO
+        if isinstance(candidate, MojoCandidate):
             return []
-        deps, requires_python, _ = self.repository.get_dependencies(candidate)
+        deps, requires_mojo, _ = self.repository.get_dependencies(
+            candidate
+        )  # TODO: get_dependencies need project.
 
         # Filter out incompatible dependencies(e.g. functools32) early so that
         # we don't get errors when building wheels.
-        valid_deps: list[Requirement] = []
+        valid_deps: list[BaseMuseRequirement] = []
         for dep in deps:
             if (
-                dep.requires_python
-                & requires_python
-                & candidate.req.requires_python
-                & self.repository.environment.python_requires
+                dep.requires_mojo
+                & requires_mojo
+                & candidate.req.requires_mojo
+                & self.repository.environment.requires_mojo
             ).is_impossible:
                 continue
-            dep.requires_python &= candidate.req.requires_python
+            dep.requires_mojo &= candidate.req.requires_mojo
             valid_deps.append(dep)
         self.fetched_dependencies[candidate.dep_key] = valid_deps[:]
         # A candidate contributes to the Python requirements only when:
@@ -233,12 +244,159 @@ class BaseProvider(AbstractProvider):
         # For example, A v1 requires python>=3.6, it not eligible on a project with
         # requires-python=">=2.7". But it is eligible if A has environment marker
         # A1; python_version>='3.8'
-        new_requires_python = (
-            candidate.req.requires_python & self.repository.environment.python_requires
+        new_requires_mojo = (
+            candidate.req.requires_mojo & self.repository.environment.requires_mojo
         )
-        if (
-            candidate.identify() not in self.overrides
-            and not requires_python.is_superset(new_requires_python)
+        if candidate.identify() not in self.overrides and not requires_mojo.is_superset(
+            new_requires_mojo
         ):
-            valid_deps.append(PythonRequirement.from_pyspec_set(requires_python))
+            valid_deps.append(MojoRequirement.from_pyspec_set(requires_mojo))
         return valid_deps
+
+
+class ReusePinProvider(BaseProvider):
+    """A provider that reuses preferred pins if possible.
+
+    This is used to implement "add", "remove", and "reuse upgrade",
+    where already-pinned candidates in lockfile should be preferred.
+    """
+
+    def __init__(
+        self,
+        preferred_pins: dict[str, Candidate],
+        tracked_names: Iterable[str],
+        *args,
+        **kwargs,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.preferred_pins = preferred_pins
+        self.tracked_names = set(tracked_names)
+
+    def find_matches(
+        self,
+        identifier: str,
+        requirements: Mapping[str, Iterator[BaseMuseRequirement]],
+        incompatibilities: Mapping[str, Iterator[Candidate]],
+    ) -> Callable[[], Iterator[Candidate]]:
+        super_find = super().find_matches(identifier, requirements, incompatibilities)
+        bare_name = strip_extras(identifier)[0]
+
+        def matches_gen() -> Iterator[Candidate]:
+            if (
+                bare_name not in self.tracked_names
+                and identifier in self.preferred_pins
+            ):
+                pin = self.preferred_pins[identifier]
+                incompat = list(incompatibilities[identifier])
+                demanded_req = next(requirements[identifier], None)
+                if demanded_req and demanded_req.is_named:
+                    pin.req = demanded_req
+                pin._preferred = True  # type: ignore[attr-defined]
+                if pin not in incompat and all(
+                    self.is_satisfied_by(r, pin) for r in requirements[identifier]
+                ):
+                    yield pin
+            yield from super_find()
+
+        return matches_gen
+
+
+class EagerUpdateProvider(ReusePinProvider):
+    """A specialized provider to handle an "eager" upgrade strategy.
+
+    An eager upgrade tries to upgrade not only packages specified, but also
+    their dependencies (recursively). This contrasts to the "only-if-needed"
+    default, which only promises to upgrade the specified package, and
+    prevents touching anything else if at all possible.
+
+    The provider is implemented as to keep track of all dependencies of the
+    specified packages to upgrade, and free their pins when it has a chance.
+    """
+
+    def is_satisfied_by(
+        self, requirement: BaseMuseRequirement, candidate: Candidate
+    ) -> bool:
+        # If this is a tracking package, tell the resolver out of using the
+        # preferred pin, and into a "normal" candidate selection process.
+        if requirement.key in self.tracked_names and getattr(
+            candidate, "_preferred", False
+        ):
+            return False
+        return super().is_satisfied_by(requirement, candidate)
+
+    def get_dependencies(self, candidate: Candidate) -> list[BaseMuseRequirement]:
+        # If this package is being tracked for upgrade, remove pins of its
+        # dependencies, and start tracking these new packages.
+        dependencies = super().get_dependencies(candidate)
+        if self.identify(candidate) in self.tracked_names:
+            for dependency in dependencies:
+                if dependency.key:
+                    self.tracked_names.add(dependency.key)
+        return dependencies
+
+    def get_preference(
+        self,
+        identifier: str,
+        resolutions: dict[str, Candidate],
+        candidates: dict[str, Iterator[Candidate]],
+        information: dict[str, Iterator[RequirementInformation]],
+        backtrack_causes: Sequence[RequirementInformation],
+    ) -> tuple[Comparable, ...]:
+        # Resolve tracking packages so we have a chance to unpin them first.
+        (mojo, *others) = super().get_preference(
+            identifier, resolutions, candidates, information, backtrack_causes
+        )
+        return (mojo, identifier not in self.tracked_names, *others)
+
+
+def get_provider(
+    project: Project,
+    strategy: str = "all",
+    tracked_names: Iterable[str] | None = None,
+    for_install: bool = False,
+    ignore_compatibility: bool = True,
+) -> BaseProvider:
+    """Builds a provider class for resolver.
+
+    Args:
+        strategy (str): The resolve strategy.
+        tracked_names (Iterable[str] | None): The names of packages that need to be updated.
+        for_install (bool): If the provider is for install.
+        ignore_compatibility (bool): Whether to ignore compatibility.
+
+    Returns:
+        BaseProvider: The provider object.
+    """
+
+    repository = project.get_repository(ignore_compatibility=ignore_compatibility)
+    allow_prereleases = project.allow_prereleases
+    overrides = {
+        normalize_name(k): v
+        for k, v in project.mojoproject.resolution_overrides.items()
+    }
+    locked_repository: LockedRepository | None = None
+    if strategy != "all" or for_install:
+        try:
+            locked_repository = project.locked_repository
+        except Exception:
+            if for_install:
+                raise
+            project.ui.echo(
+                "Unable to reuse the lock file as it is not compatible with PDM",
+                style="warning",
+                err=True,
+            )
+
+    if locked_repository is None:
+        return BaseProvider(repository, allow_prereleases, overrides)
+    if for_install:
+        return BaseProvider(locked_repository, allow_prereleases, overrides)
+    provider_class = ReusePinProvider if strategy == "reuse" else EagerUpdateProvider
+    tracked_names = [strip_extras(name)[0] for name in tracked_names or ()]
+    return provider_class(
+        locked_repository.all_candidates,
+        tracked_names,
+        repository,
+        allow_prereleases,
+        overrides,
+    )

@@ -90,7 +90,7 @@ class BaseRepository(ABC):
     # def get_dependencies(
     #     self, candidate: Candidate
     # ) -> tuple[list[BaseMuseRequirement], SpecifierSet, str]:
-    #     """Get (dependencies, python_specifier, summary) of the candidate."""
+    #     """Get (dependencies, mojo_specifier, summary) of the candidate."""
     #     requires_mojo, summary = "", ""
     #     requirements: list[str] = []
     #     last_ext_info = None

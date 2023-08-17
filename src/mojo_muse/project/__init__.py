@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, cast
 
 import platformdirs
 import tomlkit
-from mups import normalize_name
 from packaging.specifiers import SpecifierSet
 from tomlkit.items import Array
 
@@ -25,8 +24,6 @@ from ..models.candidates import BasePreparedCandidate, Candidate, make_candidate
 from ..models.link import Link
 from ..models.repositories import BaseRepository, LockedRepository, MojoPIRepository
 from ..models.requirements import BaseMuseRequirement, parse_requirement, strip_extras
-from ..resolver.providers import BaseProvider, EagerUpdateProvider, ReusePinProvider
-from ..resolver.reporters import BaseReporter, SpinnerReporter
 from ..termui import UI, SilentSpinner, Spinner, ui
 from ..utils import (
     cd,
@@ -261,78 +258,6 @@ class Project:
 
         return LockedRepository(lockfile, self.sources)
 
-    def get_provider(
-        self,
-        strategy: str = "all",
-        tracked_names: Iterable[str] | None = None,
-        for_install: bool = False,
-        ignore_compatibility: bool = True,
-    ) -> BaseProvider:
-        """Builds a provider class for resolver.
-
-        Args:
-            strategy (str): The resolve strategy.
-            tracked_names (Iterable[str] | None): The names of packages that need to be updated.
-            for_install (bool): If the provider is for install.
-            ignore_compatibility (bool): Whether to ignore compatibility.
-
-        Returns:
-            BaseProvider: The provider object.
-        """
-
-        repository = self.get_repository(ignore_compatibility=ignore_compatibility)
-        allow_prereleases = self.allow_prereleases
-        overrides = {
-            normalize_name(k): v for k, v in self.pyproject.resolution_overrides.items()
-        }
-        locked_repository: LockedRepository | None = None
-        if strategy != "all" or for_install:
-            try:
-                locked_repository = self.locked_repository
-            except Exception:
-                if for_install:
-                    raise
-                self.core.ui.echo(
-                    "Unable to reuse the lock file as it is not compatible with PDM",
-                    style="warning",
-                    err=True,
-                )
-
-        if locked_repository is None:
-            return BaseProvider(repository, allow_prereleases, overrides)
-        if for_install:
-            return BaseProvider(locked_repository, allow_prereleases, overrides)
-        provider_class = (
-            ReusePinProvider if strategy == "reuse" else EagerUpdateProvider
-        )
-        tracked_names = [strip_extras(name)[0] for name in tracked_names or ()]
-        return provider_class(
-            locked_repository.all_candidates,
-            tracked_names,
-            repository,
-            allow_prereleases,
-            overrides,
-        )
-
-    def get_reporter(
-        self,
-        requirements: list[BaseMuseRequirement],
-        tracked_names: Iterable[str] | None = None,
-        spinner: Spinner | None = None,
-    ) -> BaseReporter:
-        """Return the reporter object to construct a resolver.
-
-        :param requirements: requirements to resolve
-        :param tracked_names: the names of packages that needs to update
-        :param spinner: optional spinner object
-        :returns: a reporter
-        """
-
-        if spinner is None:
-            spinner = SilentSpinner("")
-
-        return SpinnerReporter(spinner, requirements)
-
     def get_lock_metadata(self) -> dict[str, Any]:
         content_hash = "sha256:" + self.mojoproject.content_hash("sha256")
         return {
@@ -437,7 +362,7 @@ class Project:
 
     @property
     def backend(self) -> BuildBackend:
-        return get_backend_by_spec(self.pyproject.build_system)(self.root)
+        return get_backend_by_spec(self.mojoproject.build_system)(self.root)
 
     @property
     def cache_dir(self) -> Path:
