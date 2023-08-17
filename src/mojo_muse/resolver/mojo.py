@@ -15,7 +15,7 @@ class MojoCandidate(Candidate):
 
 class MojoRequirement(NamedMuseRequirement):
     @classmethod
-    def from_pyspec_set(cls, spec: SpecifierSet) -> MojoRequirement:
+    def from_mojospec_set(cls, spec: SpecifierSet) -> MojoRequirement:
         return cls(name="mojo", specifier=spec)
 
     def as_candidate(self) -> MojoCandidate:

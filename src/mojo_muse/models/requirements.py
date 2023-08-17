@@ -7,7 +7,7 @@ import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, cast
-from urllib.parse import unquote
+from urllib.parse import parse_qsl, unquote, urlparse, urlunparse
 
 from mups import normalize_name, parse_ring_filename, parse_sdist_filename
 from packaging.markers import Marker
@@ -16,7 +16,16 @@ from packaging.specifiers import SpecifierSet
 
 from .._types import RequirementDict
 from ..exceptions import ExtrasWarning, RequirementError
-from ..utils import comparable_version, path_to_url, url_without_fragments
+from ..utils import (
+    add_ssh_scheme_to_git_uri,
+    comparable_version,
+    get_relative_path,
+    path_to_url,
+    path_without_fragments,
+    url_to_path,
+    url_without_fragments,
+)
+from .link import Link
 from .markers import split_marker_extras
 from .specifiers import get_specifier
 
@@ -174,10 +183,6 @@ class BaseNamedMuseRequirement(BaseMuseRequirement):
     pass
 
 
-class BaseVcsMuseRequirement(BaseMuseRequirement):
-    pass
-
-
 class BaseFileMuseRequirement(BaseMuseRequirement):
     url: str = ""
     path: Path | None = None
@@ -201,9 +206,39 @@ class BaseFileMuseRequirement(BaseMuseRequirement):
             specifier=specifier,
             prerelease=prerelease,
         )
-        self.url = url
         self.path = Path(path)
+
+        # if url:  # TODO: decide later.
+        #     self.url = url
+        self._parse_url()
+
+        if self.is_local_dir:
+            self._check_installable()
         self.subdirectory = subdirectory
+
+    def _parse_url(self) -> None:
+        if not self.url and self.path and self.path.is_absolute():
+            self.url = path_to_url(self.path.as_posix())
+        if not self.path:
+            path = get_relative_path(self.url)
+            if path is None:
+                try:
+                    self.path = path_without_fragments(url_to_path(self.url))
+                except AssertionError:
+                    pass
+            else:
+                self.path = path_without_fragments(path)
+        if self.url:
+            self._parse_name_from_url()
+
+    def _check_installable(self) -> None:
+        assert self.path
+        if not (self.path.joinpath("mojoproject.toml").exists()):
+            raise RequirementError(f"The local path '{self.path}' is not installable.")
+        # TODO: Is this required? If so, move project_file.py & toml_file.py to models/.
+        # result = Setup.from_directory(self.path.absolute())
+        # if result.name:
+        #     self.name = result.name
 
     @property
     def is_local(self) -> bool:
@@ -269,11 +304,97 @@ class BaseFileMuseRequirement(BaseMuseRequirement):
                 pass  # TODO: double check
         return None
 
+    def _parse_name_from_url(self) -> None:
+        parsed = urlparse(self.url)
+        fragments = dict(parse_qsl(parsed.fragment))
+        if "egg" in fragments:  # TODO: customize for mojopi
+            egg_info = unquote(fragments["egg"])
+            name, extras = strip_extras(egg_info)
+            self.name = name
+            if not self.extras:
+                self.extras = extras
+        if not self.name and not self.is_vcs:
+            self.name = self.guess_name()
+
+    def as_file_link(self) -> Link:
+        url = self.get_full_url()
+        # only subdirectory is useful in a file link
+        if self.subdirectory:
+            url += f"#subdirectory={self.subdirectory}"
+        return Link(url)
+
     # @classmethod
     # def create(cls: type[T], **kwargs: Any) -> T:
     #     if kwargs.get("path"):
     #         kwargs["path"] = Path(kwargs["path"])
     #     return super().create(**kwargs)
+
+
+class BaseVcsMuseRequirement(BaseFileMuseRequirement):
+    vcs: str = ""
+    ref: str | None = None
+    revision: str | None = None
+
+    def __init__(
+        self,
+        name: str,
+        marker: Marker | None = None,
+        extras: list[str] | None = None,
+        specifier: SpecifierSet | None = None,
+        prerelease: bool = False,
+        url: str = "",
+        path: Path | None = None,
+        subdirectory: str | None = None,
+        vcs: str = "",
+        ref: str | None = None,
+        revision: str | None = None,
+    ) -> None:
+        super().__init__(
+            name=name,
+            marker=marker,
+            extras=extras,
+            specifier=specifier,
+            prerelease=prerelease,
+            url=url,
+            path=path,
+            subdirectory=subdirectory,
+        )
+
+        if not vcs:
+            self.vcs = self.url.split("+", 1)[0]
+        else:
+            self.vcs = vcs
+
+        if ref:
+            self.ref = ref
+        if revision:
+            self.revision = revision
+
+    def get_full_url(self) -> str:
+        url = super().get_full_url()
+        if self.revision and not self.editable:
+            url += f"@{self.revision}"
+        elif self.ref:
+            url += f"@{self.ref}"
+        return url
+
+    def _parse_url(self) -> None:
+        vcs, url_no_vcs = self.url.split("+", 1)
+        if url_no_vcs.startswith("git@"):
+            url_no_vcs = add_ssh_scheme_to_git_uri(url_no_vcs)
+        if not self.name:
+            self._parse_name_from_url()
+        ref = self.ref
+        parsed = urlparse(url_no_vcs)
+        path = parsed.path
+        fragments = dict(parse_qsl(parsed.fragment))
+        if "subdirectory" in fragments:
+            self.subdirectory = fragments["subdirectory"]
+        if "@" in parsed.path:
+            path, ref = parsed.path.split("@", 1)
+        repo = urlunparse(parsed._replace(path=path, fragment=""))
+        self.url = f"{vcs}+{repo}"
+        self.repo, self.ref = repo, ref
 
 
 #### ABC End, Concrete Classes Start #################################
@@ -326,11 +447,32 @@ class NamedMuseRequirement(BaseNamedMuseRequirement):
         )
 
 
-class VcsMuseRequirement(BaseVcsMuseRequirement):
-    pass
-
-
 class FileMuseRequirement(BaseFileMuseRequirement):
+    def as_line(self) -> str:
+        project_name = f"{self.project_name}" if self.project_name else ""
+        extras = (
+            f"[{','.join(sorted(self.extras))}]"
+            if self.extras and self.project_name
+            else ""
+        )
+        marker = self._format_marker()
+        if marker:
+            marker = f" {marker}"
+        url = self.get_full_url()
+        fragments = []
+        if self.subdirectory:
+            fragments.append(f"subdirectory={self.subdirectory}")
+        if self.editable:
+            if project_name:
+                fragments.insert(0, f"egg={project_name}{extras}")
+            fragment_str = ("#" + "&".join(fragments)) if fragments else ""
+            return f"-e {url}{fragment_str}{marker}"
+        delimiter = " @ " if project_name else ""
+        fragment_str = ("#" + "&".join(fragments)) if fragments else ""
+        return f"{project_name}{extras}{delimiter}{url}{fragment_str}{marker}"
+
+
+class VcsMuseRequirement(BaseVcsMuseRequirement):
     def as_line(self) -> str:
         project_name = f"{self.project_name}" if self.project_name else ""
         extras = (

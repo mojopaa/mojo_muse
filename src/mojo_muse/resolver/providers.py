@@ -208,7 +208,7 @@ class BaseProvider(AbstractProvider):
             version, allow_prereleases
         )
 
-    def get_dependencies(self, candidate: Candidate) -> list[Requirement]:
+    def get_dependencies(self, candidate: Candidate) -> list[BaseMuseRequirement]:
         if isinstance(candidate, PythonCandidate):
             return []
         deps, requires_python, _ = self.repository.get_dependencies(candidate)

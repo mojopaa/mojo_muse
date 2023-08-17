@@ -11,12 +11,14 @@ from mojo_muse.utils import (
     compare_urls,
     expand_env_vars_in_auth,
     find_project_root,
+    get_relative_path,
     get_rev_from_url,
     is_url,
     join_list_with,
     parse_netloc,
     parse_query,
     path_to_url,
+    path_without_fragments,
     split_auth_from_netloc,
     split_auth_from_url,
     url_to_path,
@@ -128,3 +130,14 @@ def test_get_rev_from_url():
 def test_is_url():
     assert is_url("http://github.com")
     assert is_url("asdf") is False
+
+
+def test_get_relative_path():
+    assert get_relative_path("file:///${PROJECT_ROOT}/test") == "test"
+    assert get_relative_path("{root:uri}/test") == "test"
+
+
+def test_path_without_fragments():
+    assert path_without_fragments("git+{REPO}.git@main#egg=pdm") == Path(
+        "git+{REPO}.git@main"
+    )  # TODO: better test case.

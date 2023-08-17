@@ -251,3 +251,20 @@ def get_rev_from_url(url: str) -> str:
 def is_url(url: str) -> bool:
     """Check if the given string is a URL"""
     return bool(parse.urlparse(url).scheme)
+
+
+def get_relative_path(url: str) -> str | None:
+    if url.startswith("file:///${PROJECT_ROOT}"):
+        return parse.unquote(url[len("file:///${PROJECT_ROOT}/") :])
+    if url.startswith("{root:uri}"):
+        return parse.unquote(url[len("{root:uri}/") :])
+    return None
+
+
+def path_without_fragments(path: str) -> Path:
+    """Remove egg fragment from path"""
+    _egg_fragment_re = re.compile(r"(.*)[#&]egg=[^&]*")
+    match = _egg_fragment_re.search(path)
+    if not match:
+        return Path(path)
+    return Path(match.group(1))
