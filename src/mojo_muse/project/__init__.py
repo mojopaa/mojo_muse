@@ -13,17 +13,26 @@ from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, cast
 
 import platformdirs
 import tomlkit
+from mups import parse_ring_filename
 from packaging.specifiers import SpecifierSet
 from tomlkit.items import Array
 
 from .._types import RepositoryConfig
 from ..auth import MuseBasicAuth
 from ..exceptions import MuseUsageError, deprecation_warning
+from ..models.backends import BuildBackend, get_backend_by_spec
 from ..models.caches import HashCache
 from ..models.candidates import BasePreparedCandidate, Candidate, make_candidate
 from ..models.link import Link
 from ..models.repositories import BaseRepository, LockedRepository, MojoPIRepository
-from ..models.requirements import BaseMuseRequirement, parse_requirement, strip_extras
+from ..models.requirements import (
+    BaseMuseRequirement,
+    FileMuseRequirement,
+    VcsMuseRequirement,
+    parse_requirement,
+    strip_extras,
+)
+from ..models.vcs import vcs_support
 from ..termui import UI, SilentSpinner, Spinner, ui
 from ..utils import (
     cd,
@@ -31,6 +40,7 @@ from ..utils import (
     find_project_root,
     get_rev_from_url,
     path_to_url,
+    url_without_fragments,
 )
 from .config import Config
 from .lockfile import Lockfile
@@ -381,11 +391,22 @@ class Project:
         return HashCache(directory=self.cache("hashes"))
 
 
+def _filter_none(data: dict[str, Any]) -> dict[str, Any]:
+    """Return a new dict without None values"""
+    return {k: v for k, v in data.items() if v is not None}
+
+
 class PreparedCandidate(BasePreparedCandidate):
+    ui: UI = ui
+    project: Project
+
+    def __init__(self, candidate: Candidate, project: Project, ui: UI = ui) -> None:
+        super().__init__(candidate)
+        self.project = project
+        self.ui = ui
+
     @cached_property
     def revision(self) -> str:
-        from ..models.vcs import vcs_support
-
         if not (self._source_dir and os.path.exists(self._source_dir)):
             # It happens because the cached wheel is hit and the source code isn't
             # pulled to local. In this case the link url must contain the full commit
@@ -394,10 +415,133 @@ class PreparedCandidate(BasePreparedCandidate):
             rev = get_rev_from_url(self.candidate.link.url)  # type: ignore[union-attr]
             if rev:
                 return rev
-        assert isinstance(self.req, VcsRequirement)  # TODO
-        return vcs_support.get_backend(
-            self.req.vcs, self.environment.project.core.ui.verbosity
-        ).get_revision(cast(Path, self._source_dir))
+        assert isinstance(self.req, VcsMuseRequirement)  # TODO
+        return vcs_support.get_backend(self.req.vcs, self.ui.verbosity).get_revision(
+            cast(Path, self._source_dir)
+        )
+
+    def direct_url(self) -> dict[str, Any] | None:
+        """PEP 610 direct_url.json data"""
+        req = self.req
+        if isinstance(req, VcsMuseRequirement):
+            if req.editable:
+                assert self._source_dir
+                return _filter_none(
+                    {
+                        "url": path_to_url(self._source_dir.as_posix()),
+                        "dir_info": {"editable": True},
+                        "subdirectory": req.subdirectory,
+                    }
+                )
+            return _filter_none(
+                {
+                    "url": url_without_fragments(req.repo),
+                    "vcs_info": _filter_none(
+                        {
+                            "vcs": req.vcs,
+                            "requested_revision": req.ref,
+                            "commit_id": self.revision,
+                        }
+                    ),
+                    "subdirectory": req.subdirectory,
+                }
+            )
+        elif isinstance(req, FileMuseRequirement):
+            assert self.link is not None
+            if self.link.is_file and self.link.file_path.is_dir():
+                return _filter_none(
+                    {
+                        "url": self.link.url_without_fragment,
+                        "dir_info": _filter_none({"editable": req.editable or None}),
+                        "subdirectory": req.subdirectory,
+                    }
+                )
+            with self.environment.get_finder() as finder:  # TODO: get_finder(), unearth hard work!
+                hash_cache = self.project.make_hash_cache()
+                return _filter_none(
+                    {
+                        "url": self.link.url_without_fragment,
+                        "archive_info": {
+                            "hash": hash_cache.get_hash(
+                                self.link, finder.session
+                            ).replace(":", "=")
+                        },
+                        "subdirectory": req.subdirectory,
+                    }
+                )
+        else:
+            return None
+
+    def _ring_compatible(self, wheel_file: str, allow_all: bool = False) -> bool:
+        if allow_all:
+            return True
+        # supported_tags = self.environment.target_python.supported_tags()
+        file_tags = parse_ring_filename(wheel_file)[-1]
+        return not file_tags.isdisjoint(supported_tags)
+
+    def obtain(self, allow_all: bool = False, unpack: bool = True) -> None:
+        """Fetch the link of the candidate and unpack to local if necessary.
+
+        :param allow_all: If true, don't validate the wheel tag nor hashes
+        :param unpack: Whether to download and unpack the link if it's not local
+        """
+        if self.wheel:
+            if self._wheel_compatible(self.wheel.name, allow_all):
+                return
+        elif self._source_dir and self._source_dir.exists():
+            return
+
+        with self.environment.get_finder() as finder:
+            if (
+                not self.link
+                or self.link.is_wheel
+                and not self._wheel_compatible(self.link.filename, allow_all)
+            ):
+                if self.req.is_file_or_url:
+                    raise CandidateNotFound(
+                        f"The URL requirement {self.req.as_line()} is a wheel but incompatible"
+                    )
+                self.link = self.wheel = None  # reset the incompatible wheel
+                self.link = _find_best_match_link(
+                    finder,
+                    self.req.as_pinned_version(self.candidate.version),
+                    self.candidate.hashes,
+                    ignore_compatibility=allow_all,
+                )
+                if not self.link:
+                    raise CandidateNotFound(
+                        f"No candidate is found for `{self.req.project_name}` that matches the environment or hashes"
+                    )
+                if not self.candidate.link:
+                    self.candidate.link = self.link
+            if allow_all and not self.req.editable:
+                cached = self._get_cached_wheel()
+                if cached:
+                    self.wheel = cached
+                    return
+            if unpack:
+                self._unpack(validate_hashes=not allow_all)
+
+    def build(self) -> Path:
+        """Call PEP 517 build hook to build the candidate into a wheel"""
+        self.obtain(allow_all=False)
+        if self.wheel:
+            return self.wheel
+        if not self.req.editable:
+            cached = self._get_cached_wheel()
+            if cached:
+                self.wheel = cached
+                return self.wheel
+        assert self._source_dir, "Source directory isn't ready yet"
+        builder_cls = EditableBuilder if self.req.editable else WheelBuilder
+        builder = builder_cls(str(self._unpacked_dir), self.environment)
+        build_dir = self._get_wheel_dir()
+        os.makedirs(build_dir, exist_ok=True)
+        termui.logger.info("Running PEP 517 backend to build a wheel for %s", self.link)
+        self.wheel = Path(
+            builder.build(build_dir, metadata_directory=self._metadata_dir)
+        )
+        return self.wheel
 
 
 def prepare(candidate: Candidate) -> PreparedCandidate:
