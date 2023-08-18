@@ -30,10 +30,12 @@ class BaseProvider(AbstractProvider):
     def __init__(
         self,
         repository: BaseRepository,
+        project: Project,
         allow_prereleases: bool | None = None,
         overrides: dict[str, str] | None = None,
     ) -> None:
         self.repository = repository
+        self.project = project
         self.allow_prereleases = allow_prereleases  # Root allow_prereleases value
         self.fetched_dependencies: dict[
             tuple[str, str | None], list[BaseMuseRequirement]

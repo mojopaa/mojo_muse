@@ -61,8 +61,8 @@ class Project:
     """Core project class.
 
     Args:
-        core: The core instance.
         root_path: The root path of the project.
+        ui: The UI instance.
         is_global: Whether the project is global.
         global_config: The path to the global config file.
     """
@@ -199,6 +199,12 @@ class Project:
     @property
     def requires_mojo(self) -> SpecifierSet:
         return SpecifierSet(self.mojoproject.metadata.get("requires-mojo", ""))
+
+    @property
+    def requires_python(self) -> SpecifierSet:
+        return SpecifierSet(
+            self.mojoproject.metadata.get("requires-python", "")
+        )  # TODO: double check
 
     def get_dependencies(
         self, group: str | None = None

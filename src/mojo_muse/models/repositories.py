@@ -1,3 +1,5 @@
+"""Base repository definition. Use Repository, please import from project instead."""
+
 import dataclasses
 import posixpath
 import sys
