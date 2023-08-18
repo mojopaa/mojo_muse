@@ -31,7 +31,6 @@ from ..utils import (
 )
 from .config import Config
 from .link import Link
-from .project_file import MojoProjectFile
 
 
 class SafeFileCache(SeparateBodyBaseCache):
