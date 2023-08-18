@@ -1,6 +1,7 @@
 import atexit
 import contextlib
 import functools
+import importlib.resources
 import os
 import re
 import shutil
@@ -9,7 +10,7 @@ import sys
 import tempfile
 from pathlib import Path
 from re import Match
-from typing import IO, Any, Iterator
+from typing import IO, Any, BinaryIO, Iterator
 from urllib import parse
 from urllib.request import pathname2url, url2pathname
 
@@ -322,3 +323,7 @@ def splitext(path: str) -> tuple[str, str]:
         ext = base[-4:] + ext
         base = base[:-4]
     return base, ext
+
+
+def resources_open_binary(package: str, resource: str) -> BinaryIO:
+    return (importlib.resources.files(package) / resource).open("rb")

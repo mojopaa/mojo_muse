@@ -14,6 +14,10 @@ class NoConfigError(MuseUsageError, KeyError):
         return f"Not such config key: {self.args[0]!r}"
 
 
+class InvalidPyVersion(MuseUsageError, ValueError):
+    pass
+
+
 class RequirementError(MuseException):
     pass
 
