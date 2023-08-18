@@ -1,4 +1,3 @@
-import base64
 import collections
 import contextlib
 import dataclasses
@@ -17,7 +16,6 @@ from packaging.tags import Tag
 from packaging.utils import canonicalize_name, parse_wheel_filename
 from requests import HTTPError
 
-from .._types import CandidateInfo
 from ..evaluator import TargetMojo, TargetPython
 from ..exceptions import MuseException
 from ..session import Session
@@ -31,7 +29,6 @@ from ..utils import (
     find_project_root,
     url_without_fragments,
 )
-from .candidates import Candidate
 from .config import Config
 from .link import Link
 from .project_file import MojoProjectFile
@@ -431,32 +428,6 @@ class JSONFileCache(Generic[KT, VT]):
     def clear(self) -> None:
         self._cache.clear()
         self._write_cache()
-
-
-class CandidateInfoCache(JSONFileCache[Candidate, CandidateInfo]):
-    """A cache manager that stores the
-    candidate -> (dependencies, requires_python, summary) mapping.
-    """
-
-    @staticmethod
-    def get_url_part(link: Link) -> str:
-        url = url_without_fragments(link.split_auth()[1])
-        return base64.urlsafe_b64encode(url.encode()).decode()
-
-    @classmethod
-    def _get_key(cls, obj: Candidate) -> str:
-        # Name and version are set when dependencies are resolved,
-        # so use them for cache key. Local directories won't be cached.
-        if not obj.name or not obj.version:
-            raise KeyError("The package is missing a name or version")
-        extras = (
-            "[{}]".format(",".join(sorted(obj.req.extras))) if obj.req.extras else ""
-        )
-        version = obj.version
-        if not obj.req.is_named:
-            assert obj.link is not None
-            version = cls.get_url_part(obj.link)
-        return f"{obj.name}{extras}-{version}"
 
 
 class ProjectCache:

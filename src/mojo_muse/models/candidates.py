@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import dataclasses
 import hashlib
 import importlib.metadata as im
@@ -15,7 +16,7 @@ from typing import Any, cast
 from mups import normalize_name, parse_ring_filename
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 
-from .._types import FileHash, Package
+from .._types import CandidateInfo, FileHash, Package
 from ..exceptions import CandidateNotFound
 from ..termui import UI, logger
 from ..utils import (
@@ -26,7 +27,7 @@ from ..utils import (
     path_to_url,
     url_without_fragments,
 )
-from .caches import ProjectCache
+from .caches import JSONFileCache, ProjectCache
 from .link import Link
 from .requirements import BaseMuseRequirement, FileMuseRequirement, VcsMuseRequirement
 from .vcs import vcs_support
@@ -678,6 +679,32 @@ class PreparedCandidate(BasePreparedCandidate):
             builder.build(build_dir, metadata_directory=self._metadata_dir)  # TODO
         )
         return self.ring
+
+
+class CandidateInfoCache(JSONFileCache[Candidate, CandidateInfo]):
+    """A cache manager that stores the
+    candidate -> (dependencies, requires_python, summary) mapping.
+    """
+
+    @staticmethod
+    def get_url_part(link: Link) -> str:
+        url = url_without_fragments(link.split_auth()[1])
+        return base64.urlsafe_b64encode(url.encode()).decode()
+
+    @classmethod
+    def _get_key(cls, obj: Candidate) -> str:
+        # Name and version are set when dependencies are resolved,
+        # so use them for cache key. Local directories won't be cached.
+        if not obj.name or not obj.version:
+            raise KeyError("The package is missing a name or version")
+        extras = (
+            "[{}]".format(",".join(sorted(obj.req.extras))) if obj.req.extras else ""
+        )
+        version = obj.version
+        if not obj.req.is_named:
+            assert obj.link is not None
+            version = cls.get_url_part(obj.link)
+        return f"{obj.name}{extras}-{version}"
 
 
 @lru_cache(maxsize=None)
