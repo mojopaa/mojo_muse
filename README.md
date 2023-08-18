@@ -7,4 +7,4 @@
 
 ### Dependency Graph
 
-`pyreverse -o png  -ASmy mojo_muse`  # TODO: Need to refine.
+`pyreverse -o png  -ASmy src/mojo_muse`  # TODO: Need to refine.

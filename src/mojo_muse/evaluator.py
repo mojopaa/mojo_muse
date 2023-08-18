@@ -1,4 +1,5 @@
 """Evaluate the links based on the given environment."""
+# unearth/evaluator.py
 from __future__ import annotations
 
 import hashlib
@@ -18,9 +19,12 @@ from packaging.utils import (
 from packaging.version import InvalidVersion, Version
 
 from .models.link import Link
+from .models.requirements import strip_extras
+from .models.specifiers import fix_legacy_specifier
+from .session import Session
 
 # from unearth.pep425tags import get_supported
-from .utils import ARCHIVE_EXTENSIONS, fix_legacy_specifier, splitext, strip_extras
+from .utils import ARCHIVE_EXTENSIONS, splitext
 
 # from requests import Session
 
@@ -70,6 +74,37 @@ class TargetMojo:
                 mojo_version = "".join(map(str, self.py_ver[:2]))
             self._valid_tags = get_supported(
                 mojo_version, self.platforms, self.impl, self.abis
+            )
+        return self._valid_tags
+
+
+@dataclass
+class TargetPython:
+    """Target Python to get the candidates.
+
+    Attributes:
+        py_ver: Python version tuple, e.g. ``(3, 9)``.
+        platforms: List of platforms, e.g. ``['linux_x86_64']``.
+        impl: Implementation, e.g. ``'cp'``.
+        abis: List of ABIs, e.g. ``['cp39']``.
+    """
+
+    py_ver: tuple[int, ...] | None = None
+    abis: list[str] | None = None
+    impl: str | None = None
+    platforms: list[str] | None = None
+
+    def __post_init__(self) -> None:
+        self._valid_tags: list[Tag] | None = None
+
+    def supported_tags(self) -> list[Tag]:
+        if self._valid_tags is None:
+            if self.py_ver is None:
+                py_version = None
+            else:
+                py_version = "".join(map(str, self.py_ver[:2]))
+            self._valid_tags = get_supported(  # TODO
+                py_version, self.platforms, self.impl, self.abis
             )
         return self._valid_tags
 

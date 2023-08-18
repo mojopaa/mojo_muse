@@ -31,7 +31,7 @@ class Candidate:
         "summary",
         "hashes",
         "_prepared",
-        "_requires_mojo",
+        "_requires_mojo",  # TODO: move to subclass
         "_preferred",
     )
 
@@ -53,7 +53,7 @@ class Candidate:
         self.summary = ""
         self.hashes: list[FileHash] = []
 
-        self._requires_python: str | None = None
+        self._requires_mojo: str | None = None
         self._prepared: BasePreparedCandidate | None = None
 
     def identify(self) -> str:
@@ -184,7 +184,7 @@ class BasePreparedCandidate(ABC):
         self.candidate = candidate
         self.req = candidate.req
 
-        self.wheel: Path | None = None
+        self.ring: Path | None = None
         self.link = self._replace_url_vars(self.candidate.link)
 
         self._source_dir: Path | None = None
@@ -215,10 +215,6 @@ class BasePreparedCandidate(ABC):
         pass
 
     @abstractmethod
-    def _wheel_compatible(self, wheel_file: str, allow_all: bool = False) -> bool:
-        pass
-
-    @abstractmethod
     def obtain(self, allow_all: bool = False, unpack: bool = True) -> None:
         """Fetches the link of the candidate and unpacks it locally if necessary.
 
@@ -231,29 +227,7 @@ class BasePreparedCandidate(ABC):
         """
 
     @abstractmethod
-    def _unpack(self, validate_hashes: bool = False) -> None:
-        pass
-
-    @abstractmethod
     def prepare_metadata(self, force_build: bool = False) -> im.Distribution:
-        pass
-
-    @abstractmethod
-    def _get_metadata_from_metadata_link(
-        self, link: Link, medata_hash: bool | dict[str, str] | None
-    ) -> im.Distribution | None:
-        pass
-
-    @abstractmethod
-    def _get_metadata_from_project(
-        self, pyproject_toml: Path
-    ) -> im.Distribution | None:
-        pass
-
-    @abstractmethod
-    def _get_metadata_from_build(
-        self, source_dir: Path, metadata_parent: str
-    ) -> im.Distribution:
         pass
 
     @property
@@ -269,26 +243,6 @@ class BasePreparedCandidate(ABC):
     def should_cache(self) -> bool:
         pass
 
-    @abstractmethod
-    def _get_cached_wheel(self) -> Path | None:
-        pass
-
-    @abstractmethod
-    def _get_build_dir(self) -> str:
-        pass
-
-    @abstractmethod
-    def _get_wheel_dir(self) -> str:
-        pass
-
-    def _get_metadata_from_ring(
-        self, ring: Path, metadata_parent: str
-    ) -> im.Distribution:
-        # Get metadata from METADATA inside the wheel
-        # TODO: change to ring
-        self._metadata_dir = _get_wheel_metadata_from_wheel(ring, metadata_parent)
-        return im.PathDistribution(Path(self._metadata_dir))  # TODO: use tomlkit
-
 
 @lru_cache(maxsize=None)
 def make_candidate(
@@ -298,4 +252,6 @@ def make_candidate(
     link: Link | None = None,
 ) -> Candidate:
     """Construct a candidate and cache it in memory"""
-    return Candidate(req, name, version, link)
+    return Candidate(
+        req, name, version, link
+    )  # TODO: make mojo candidate or python candidate

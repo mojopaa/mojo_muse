@@ -1,3 +1,4 @@
+import atexit
 import contextlib
 import functools
 import os
@@ -14,7 +15,22 @@ from urllib.request import pathname2url, url2pathname
 
 from packaging.version import Version, _cmpkey
 
+from ._types import FileHash
+
 WINDOWS = sys.platform == "win32"
+
+WHEEL_EXTENSION = ".whl"
+BZ2_EXTENSIONS = (".tar.bz2", ".tbz")
+XZ_EXTENSIONS = (
+    ".tar.xz",
+    ".txz",
+    ".tlz",
+    ".tar.lz",
+    ".tar.lzma",
+)
+ZIP_EXTENSIONS = (".zip", WHEEL_EXTENSION)
+TAR_EXTENSIONS = (".tar.gz", ".tgz", ".tar")
+ARCHIVE_EXTENSIONS = ZIP_EXTENSIONS + BZ2_EXTENSIONS + TAR_EXTENSIONS + XZ_EXTENSIONS
 
 
 @contextlib.contextmanager
@@ -268,3 +284,41 @@ def path_without_fragments(path: str) -> Path:
     if not match:
         return Path(path)
     return Path(match.group(1))
+
+
+def convert_hashes(files: list[FileHash]) -> dict[str, list[str]]:
+    """Convert Pipfile.lock hash lines into InstallRequirement option format.
+
+    The option format uses a str-list mapping. Keys are hash algorithms, and
+    the list contains all values of that algorithm.
+    """
+    result: dict[str, list[str]] = {}
+    for f in files:
+        hash_value = f.get("hash", "")
+        name, has_name, hash_value = hash_value.partition(":")
+        if not has_name:
+            name, hash_value = "sha256", name
+        result.setdefault(name, []).append(hash_value)
+    return result
+
+
+def create_tracked_tempdir(
+    suffix: str | None = None, prefix: str | None = None, dir: str | None = None
+) -> str:
+    name = tempfile.mkdtemp(suffix, prefix, dir)
+    os.makedirs(name, mode=0o777, exist_ok=True)
+
+    def clean_up() -> None:
+        shutil.rmtree(name, ignore_errors=True)
+
+    atexit.register(clean_up)
+    return name
+
+
+def splitext(path: str) -> tuple[str, str]:
+    """Like os.path.splitext but also takes off the .tar part"""
+    base, ext = os.path.splitext(path)
+    if base.lower().endswith(".tar"):
+        ext = base[-4:] + ext
+        base = base[:-4]
+    return base, ext

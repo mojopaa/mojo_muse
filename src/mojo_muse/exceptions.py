@@ -59,3 +59,7 @@ class VCSBackendError(URLError):
 
 class UnpackError(RuntimeError):
     pass
+
+
+class BuildError(MuseException, RuntimeError):
+    pass

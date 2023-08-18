@@ -9,6 +9,8 @@ from mojo_muse.utils import (
     cd,
     comparable_version,
     compare_urls,
+    convert_hashes,
+    create_tracked_tempdir,
     expand_env_vars_in_auth,
     find_project_root,
     get_relative_path,
@@ -21,6 +23,7 @@ from mojo_muse.utils import (
     path_without_fragments,
     split_auth_from_netloc,
     split_auth_from_url,
+    splitext,
     url_to_path,
     url_without_fragments,
 )
@@ -141,3 +144,15 @@ def test_path_without_fragments():
     assert path_without_fragments("git+{REPO}.git@main#egg=pdm") == Path(
         "git+{REPO}.git@main"
     )  # TODO: better test case.
+
+
+def test_convert_hashes():  # TODO
+    pass
+
+
+def test_create_tracked_tempdir():
+    assert create_tracked_tempdir()
+
+
+def test_splittext():
+    assert splitext("/usr/local/test.tar.gz") == ("/usr/local/test", ".tar.gz")
