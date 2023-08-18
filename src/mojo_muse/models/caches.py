@@ -1,24 +1,40 @@
+import base64
+import collections
 import contextlib
 import dataclasses
 import hashlib
 import json
 import os
-from functools import lru_cache
+from functools import cached_property, lru_cache
 from pathlib import Path
-from typing import BinaryIO, Iterable, cast
+from typing import Any, BinaryIO, Generic, Iterable, Mapping, TypeVar, cast
 
+import platformdirs
 from cachecontrol.cache import SeparateBodyBaseCache
 from cachecontrol.caches import FileCache
+from mups import parse_ring_filename
 from packaging.tags import Tag
 from packaging.utils import canonicalize_name, parse_wheel_filename
 from requests import HTTPError
 
-from ..evaluator import TargetPython
+from .._types import CandidateInfo
+from ..evaluator import TargetMojo, TargetPython
 from ..exceptions import MuseException
 from ..session import Session
 from ..termui import logger
-from ..utils import atomic_open_for_write, convert_hashes, create_tracked_tempdir
+from ..utils import (
+    DEFAULT_CONFIG_FILENAME,
+    DEFAULT_MOJOPROJECT_FILENAME,
+    atomic_open_for_write,
+    convert_hashes,
+    create_tracked_tempdir,
+    find_project_root,
+    url_without_fragments,
+)
+from .candidates import Candidate
+from .config import Config
 from .link import Link
+from .project_file import MojoProjectFile
 
 
 class SafeFileCache(SeparateBodyBaseCache):
@@ -258,3 +274,233 @@ class WheelCache:
 @lru_cache()
 def get_wheel_cache(directory: Path) -> WheelCache:
     return WheelCache(directory)
+
+
+class RingCache:
+    """Caches wheels so we do not need to rebuild them.
+
+    Rings are only cached when the URL contains egg-info or is a VCS repository
+    with an *immutable* revision. There might be more than one rings built for
+    one sdist, the one with most preferred tag will be returned.
+    """
+
+    def __init__(self, directory: Path) -> None:
+        self.directory = directory
+        self.ephemeral_directory = Path(
+            create_tracked_tempdir(prefix="muse-ring-cache-")
+        )
+
+    def _get_candidates(self, path: Path) -> Iterable[Path]:
+        if not path.exists():
+            return
+        for candidate in path.iterdir():
+            if candidate.name.endswith(".ring"):
+                yield candidate
+
+    def _get_path_parts(
+        self, link: Link, target_mojo  # TODO: TargetMojo
+    ) -> tuple[str, ...]:
+        hash_key = {
+            "url": link.url_without_fragment,
+            # target python participates in the hash key to handle the some cases
+            # where the sdist produces different wheels on different Pythons, and
+            # the differences are not encoded in compatibility tags.
+            "target_mojo": dataclasses.astuple(target_mojo),
+        }
+        if link.subdirectory:
+            hash_key["subdirectory"] = link.subdirectory
+        if link.hash:
+            hash_key[link.hash_name] = link.hash
+        hashed = hashlib.sha224(
+            json.dumps(
+                hash_key, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+            ).encode("utf-8")
+        ).hexdigest()
+        return (hashed[:2], hashed[2:4], hashed[4:6], hashed[6:])
+
+    def get_path_for_link(self, link: Link, target_mojo: TargetMojo) -> Path:
+        parts = self._get_path_parts(link, target_mojo)
+        return self.directory.joinpath(*parts)
+
+    def get_ephemeral_path_for_link(self, link: Link, target_mojo: TargetMojo) -> Path:
+        parts = self._get_path_parts(link, target_mojo)
+        return self.ephemeral_directory.joinpath(*parts)
+
+    def get(
+        self, link: Link, project_name: str | None, target_mojo: TargetMojo
+    ) -> Path | None:
+        if not project_name:
+            return None
+        canonical_name = canonicalize_name(project_name)
+        tags_priorities = {tag: i for i, tag in enumerate(target_mojo.supported_tags())}
+
+        candidate = self._get_from_path(
+            self.get_path_for_link(link, target_mojo), canonical_name, tags_priorities
+        )
+        if candidate is not None:
+            return candidate
+        return self._get_from_path(
+            self.get_ephemeral_path_for_link(link, target_mojo),
+            canonical_name,
+            tags_priorities,
+        )
+
+    def _get_from_path(
+        self, path: Path, canonical_name: str, tags_priorities: dict[Tag, int]
+    ) -> Path | None:
+        candidates: list[tuple[int, Path]] = []
+        for candidate in self._get_candidates(path):
+            try:
+                name, *_, tags = parse_ring_filename(candidate.name)
+            except ValueError:
+                logger.debug("Ignoring invalid cached wheel %s", candidate.name)
+                continue
+            if canonical_name != canonicalize_name(name):
+                logger.debug(
+                    "Ignoring cached wheel %s with invalid project name %s, expected: %s",
+                    candidate.name,
+                    name,
+                    canonical_name,
+                )
+                continue
+            if tags.isdisjoint(tags_priorities):
+                continue
+            support_min = min(
+                tags_priorities[tag] for tag in tags if tag in tags_priorities
+            )
+            candidates.append((support_min, candidate))
+        if not candidates:
+            return None
+        return min(candidates, key=lambda x: x[0])[1]
+
+
+@lru_cache()
+def get_ring_cache(directory: Path) -> RingCache:
+    return RingCache(directory)
+
+
+KT = TypeVar("KT")
+VT = TypeVar("VT")
+
+
+class JSONFileCache(Generic[KT, VT]):
+    """A file cache that stores key-value pairs in a json file."""
+
+    def __init__(self, cache_file: Path) -> None:
+        self.cache_file = cache_file
+        self._cache: dict[str, VT] = {}
+        self._read_cache()
+
+    def _read_cache(self) -> None:
+        if not self.cache_file.exists():
+            self._cache = {}
+            return
+        with self.cache_file.open() as fp:
+            try:
+                self._cache = json.load(fp)
+            except json.JSONDecodeError:
+                return
+
+    def _write_cache(self) -> None:
+        with self.cache_file.open("w") as fp:
+            json.dump(self._cache, fp)
+
+    def __contains__(self, obj: KT) -> bool:
+        return self._get_key(obj) in self._cache
+
+    @classmethod
+    def _get_key(cls, obj: KT) -> str:
+        return str(obj)
+
+    def get(self, obj: KT) -> VT:
+        key = self._get_key(obj)
+        return self._cache[key]
+
+    def set(self, obj: KT, value: VT) -> None:
+        key = self._get_key(obj)
+        self._cache[key] = value
+        self._write_cache()
+
+    def delete(self, obj: KT) -> None:
+        try:
+            del self._cache[self._get_key(obj)]
+        except KeyError:
+            pass
+        self._write_cache()
+
+    def clear(self) -> None:
+        self._cache.clear()
+        self._write_cache()
+
+
+class CandidateInfoCache(JSONFileCache[Candidate, CandidateInfo]):
+    """A cache manager that stores the
+    candidate -> (dependencies, requires_python, summary) mapping.
+    """
+
+    @staticmethod
+    def get_url_part(link: Link) -> str:
+        url = url_without_fragments(link.split_auth()[1])
+        return base64.urlsafe_b64encode(url.encode()).decode()
+
+    @classmethod
+    def _get_key(cls, obj: Candidate) -> str:
+        # Name and version are set when dependencies are resolved,
+        # so use them for cache key. Local directories won't be cached.
+        if not obj.name or not obj.version:
+            raise KeyError("The package is missing a name or version")
+        extras = (
+            "[{}]".format(",".join(sorted(obj.req.extras))) if obj.req.extras else ""
+        )
+        version = obj.version
+        if not obj.req.is_named:
+            assert obj.link is not None
+            version = cls.get_url_part(obj.link)
+        return f"{obj.name}{extras}-{version}"
+
+
+class ProjectCache:
+    """Caches project caches so we do not need to rebuild them.
+    Used by both, candidates, repositories, and project modules.
+    """
+
+    def __init__(
+        self,
+        root_path: str | Path | None = None,
+        global_config: str | Path | None = None,
+    ) -> None:
+        root_path = root_path or find_project_root()
+        self.root = root_path
+
+        if global_config is None:
+            global_config = platformdirs.user_config_path("muse") / "config.toml"
+        self.global_config = Config(Path(global_config), is_global=True)
+
+    @cached_property
+    def project_config(self) -> Config:
+        """Read-and-writable configuration dict for project settings"""
+        return Config(self.root / DEFAULT_CONFIG_FILENAME)
+
+    @cached_property
+    def config(self) -> Mapping[str, Any]:
+        """A read-only dict configuration"""
+        return collections.ChainMap(self.project_config, self.global_config)
+
+    @property
+    def cache_dir(self) -> Path:
+        return Path(self.config.get("cache_dir", ""))
+
+    def cache(self, name: str) -> Path:
+        path = self.cache_dir / name
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            # The path could be not accessible
+            pass
+        return path
+
+    def make_hash_cache(self) -> HashCache:
+        return HashCache(directory=self.cache("hashes"))
+
+    def make_ring_cache(self) -> RingCache:  # TODO
+        return get_ring_cache(self.cache("rings"))  # TODO

@@ -16,7 +16,7 @@ def _remove_empty_tables(doc: dict) -> None:
                 del doc[k]
 
 
-class MojoProject(TOMLBase):
+class MojoProjectFile(TOMLBase):
     """The data object representing th mojoproject.toml file"""
 
     def read(self) -> TOMLDocument:

@@ -1,21 +1,37 @@
 """Base repository definition. Use Repository, please import from project instead."""
 
+import collections
 import dataclasses
+import hashlib
 import posixpath
 import sys
 from abc import ABC, abstractmethod
-from functools import wraps
+from functools import cached_property, wraps
+from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, TypeVar, cast
 
+import platformdirs
 from mups import normalize_name, parse_ring_filename
 from packaging.specifiers import SpecifierSet
 
 from .. import termui
 from .._types import CandidateInfo, FileHash, RepositoryConfig, SearchResult
 from ..exceptions import CandidateInfoNotFound, CandidateNotFound
-from ..utils import cd, path_to_url, url_to_path, url_without_fragments
+from ..termui import ui
+from ..utils import (
+    DEFAULT_CONFIG_FILENAME,
+    DEFAULT_MOJOPROJECT_FILENAME,
+    cd,
+    find_project_root,
+    path_to_url,
+    url_to_path,
+    url_without_fragments,
+)
+from .caches import CandidateInfoCache, ProjectCache
 from .candidates import Candidate, make_candidate
+from .config import Config
 from .link import Link
+from .project_file import MojoProjectFile
 from .requirements import (
     BaseMuseRequirement,
     MuseRequirement,
@@ -47,20 +63,26 @@ class BaseRepository(ABC):
     def __init__(
         self,
         sources: list[RepositoryConfig],
+        global_config: str | Path | None = None,
+        root_path: str | Path | None = None,
         ignore_compatibility: bool = True,
+        ui: termui.UI = ui,
     ) -> None:
-        """Initialize the package manager.
-
-        Args:
-            sources (list[RepositoryConfig]): A list of sources to download packages from.
-            environment (BaseEnvironment): The bound environment instance.
-            ignore_compatibility (bool, optional): If True, don't evaluate candidate against
-                the current environment. Defaults to True.
-        """
         self.sources = sources
+
+        self.project_cache = ProjectCache(global_config=global_config)
+        self._hash_cache = self.project_cache.make_hash_cache()
+
+        root_path = root_path or find_project_root()
+        self.root = root_path
+
+        mpf = MojoProjectFile(root_path / DEFAULT_MOJOPROJECT_FILENAME)
+        self._project_metadata = mpf.metadata
+
+        self._candidate_info_cache = self.make_candidate_info_cache()
+
         self.ignore_compatibility = ignore_compatibility
-        # self._candidate_info_cache = environment.project.make_candidate_info_cache()
-        # self._hash_cache = environment.project.make_hash_cache()
+        self.ui = ui
 
     @abstractmethod
     def dependency_generators(self) -> Iterable[Callable[[Candidate], CandidateInfo]]:
@@ -85,76 +107,81 @@ class BaseRepository(ABC):
             In _types it's list[Package]
         """
 
+    @property
+    def requires_mojo(self) -> SpecifierSet:
+        return SpecifierSet(self._project_metadata.get("requires-mojo", ""))
+
+    @property
+    def project_name(self) -> str:
+        return self._project_metadata.get("name")  # TODO: default value?
+
+    def make_candidate_info_cache(self) -> CandidateInfoCache:
+        mojo_hash = hashlib.sha1(str(self.requires_mojo).encode()).hexdigest()
+        file_name = f"package_meta_{mojo_hash}.json"
+        return CandidateInfoCache(self.project_cache.cache("metadata") / file_name)
+
     def get_filtered_sources(self, req: BaseMuseRequirement) -> list[RepositoryConfig]:
         """Get matching sources based on the index attribute."""
         return self.sources
 
-    # def get_dependencies(
-    #     self, candidate: Candidate
-    # ) -> tuple[list[BaseMuseRequirement], SpecifierSet, str]:
-    #     """Get (dependencies, mojo_specifier, summary) of the candidate."""
-    #     requires_mojo, summary = "", ""
-    #     requirements: list[str] = []
-    #     last_ext_info = None
-    #     for getter in self.dependency_generators():
-    #         try:
-    #             requirements, requires_mojo, summary = getter(candidate)
-    #         except CandidateInfoNotFound:
-    #             last_ext_info = sys.exc_info()
-    #             continue
-    #         break
-    #     else:
-    #         if last_ext_info is not None:
-    #             raise last_ext_info[1].with_traceback(last_ext_info[2])  # type: ignore[union-attr]
-    #     reqs: list[BaseMuseRequirement] = []
-    #     for line in requirements:
-    #         if line.startswith("-e "):
-    #             reqs.append(parse_requirement(line[3:], True))
-    #         else:
-    #             reqs.append(parse_requirement(line))
-    #     if candidate.req.extras:
-    #         # XXX: If the requirement has extras, add the original candidate
-    #         # (without extras) as its dependency. This ensures the same package with
-    #         # different extras resolve to the same version.
-    #         self_req = dataclasses.replace(
-    #             candidate.req.as_pinned_version(candidate.version),
-    #             extras=None,
-    #             marker=None,
-    #         )
-    #         reqs.append(self_req)
-    #     # Store the metadata on the candidate for caching
-    #     candidate.requires_mojo = requires_mojo
-    #     candidate.summary = summary
-    #     if not self.ignore_compatibility:
-    #         pep508_env = self.environment.marker_environment
-    #         reqs = [
-    #             req for req in reqs if not req.marker or req.marker.evaluate(pep508_env)
-    #         ]
-    #     return reqs, SpecifierSet(requires_mojo), summary
+    def get_dependencies(
+        self, candidate: Candidate
+    ) -> tuple[list[BaseMuseRequirement], SpecifierSet, str]:
+        """Get (dependencies, mojo_specifier, summary) of the candidate."""
+        requires_mojo, summary = "", ""
+        requirements: list[str] = []
+        last_ext_info = None
+        for getter in self.dependency_generators():
+            try:
+                requirements, requires_mojo, summary = getter(candidate)
+            except CandidateInfoNotFound:
+                last_ext_info = sys.exc_info()
+                continue
+            break
+        else:
+            if last_ext_info is not None:
+                raise last_ext_info[1].with_traceback(last_ext_info[2])  # type: ignore[union-attr]
+        reqs: list[BaseMuseRequirement] = []
+        for line in requirements:
+            if line.startswith("-e "):
+                reqs.append(parse_requirement(line[3:], editable=True))
+            else:
+                reqs.append(parse_requirement(line))
+        if candidate.req.extras:
+            # XXX: If the requirement has extras, add the original candidate
+            # (without extras) as its dependency. This ensures the same package with
+            # different extras resolve to the same version.
+            self_req = candidate.req.as_pinned_version(candidate.version)
+            self_req.extras = None
+            self_req.marker = None
+            reqs.append(self_req)
+        # Store the metadata on the candidate for caching
+        candidate.requires_mojo = requires_mojo
+        candidate.summary = summary
+        if not self.ignore_compatibility:
+            pep508_env = self.environment.marker_environment  # TODO
+            reqs = [
+                req for req in reqs if not req.marker or req.marker.evaluate(pep508_env)
+            ]
+        return reqs, SpecifierSet(requires_mojo), summary
 
-    # def is_this_package(self, requirement: BaseMuseRequirement) -> bool:
-    # TODO: move to environment or project
-    #     """Whether the requirement is the same as this package"""
-    #     project = self.environment.project
-    #     return (
-    #         requirement.is_named
-    #         and project.name is not None
-    #         and requirement.key == normalize_name(project.name)
-    #     )
+    def is_this_package(self, requirement: BaseMuseRequirement) -> bool:
+        """Whether the requirement is the same as this package"""
+        return (
+            requirement.is_named
+            and self.project_name is not None
+            and requirement.key == normalize_name(self.project_name)
+        )
 
-    # def make_this_candidate(self, requirement: BaseMuseRequirement) -> Candidate:
-    # TODO: move to environment or project
-    #     """Make a candidate for this package.
-    #     In this case the finder will look for a candidate from the package sources
-    #     """
-    #     from .link import Link
-
-    #     project = self.environment.project
-    #     assert project.name
-    #     link = Link.from_path(project.root)
-    #     candidate = make_candidate(requirement, project.name, link=link)
-    #     candidate.prepare(self.environment).metadata
-    #     return candidate
+    def make_this_candidate(self, requirement: BaseMuseRequirement) -> Candidate:
+        """Make a candidate for this package.  # TODO: investigate
+        In this case the finder will look for a candidate from the package sources
+        """
+        assert self.project_name
+        link = Link.from_path(self.root)
+        candidate = make_candidate(req=requirement, name=self.project_name, link=link)
+        # candidate.prepare(self.environment).metadata  # TODO: unprepared
+        return candidate
 
     def find_candidates(
         self,
@@ -170,7 +197,9 @@ class BaseRepository(ABC):
 
         if self.is_this_package(requirement):
             return [self.make_this_candidate(requirement)]
-        requires_mojo = requirement.requires_mojo & self.environment.requires_mojo
+        requires_mojo = (
+            requirement.requires_mojo & self.requires_mojo
+        )  # TODO: implement this?
         cans = self._find_candidates(requirement)
         applicable_cans = [
             c
@@ -181,7 +210,10 @@ class BaseRepository(ABC):
         applicable_cans_mojo_compatible = [
             c
             for c in applicable_cans
-            if ignore_requires_mojo or requires_mojo.is_subset(c.requires_mojo)
+            if ignore_requires_mojo
+            or requires_mojo.is_subset(
+                c.requires_mojo
+            )  # TODO: implement this? github issue: https://github.com/pypa/packaging/issues/707
         ]
         # Evaluate data-requires-mojo attr and discard incompatible candidates
         # to reduce the number of candidates to resolve.
@@ -199,6 +231,7 @@ class BaseRepository(ABC):
             applicable_cans_mojo_compatible = [
                 c
                 for c in applicable_cans
+                # TODO: implement this? github issue: https://github.com/pypa/packaging/issues/707
                 if ignore_requires_mojo or requires_mojo.is_subset(c.requires_mojo)
             ]
             if applicable_cans_mojo_compatible:
@@ -224,7 +257,7 @@ class BaseRepository(ABC):
                     else:
                         termui.logger.debug(new_line)
 
-        if self.environment.project.core.ui.verbosity >= termui.Verbosity.DEBUG:
+        if self.ui.verbosity >= termui.Verbosity.DEBUG:
             if applicable_cans:
                 log_candidates("Found matching candidates:", applicable_cans)
             elif cans:

@@ -11,7 +11,7 @@ from .. import termui
 
 
 class TOMLBase(TOMLFile):
-    def __init__(self, path: str | Path, *, ui: termui.UI) -> None:
+    def __init__(self, path: str | Path, *, ui: termui.UI = termui.ui) -> None:
         super().__init__(path)
         self._path = Path(path)
         self.ui = ui

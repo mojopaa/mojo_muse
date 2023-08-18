@@ -218,7 +218,7 @@ PyVersion.MAX = PyVersion((99, 99, 99))
 
 
 def _read_max_versions() -> dict[PyVersion, int]:
-    with resources_open_binary("pdm.models", "python_max_versions.json") as fp:
+    with resources_open_binary("mojo_muse.models", "python_max_versions.json") as fp:
         return {PyVersion(k): v for k, v in json.load(fp).items()}
 
 

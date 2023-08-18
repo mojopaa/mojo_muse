@@ -33,6 +33,9 @@ ZIP_EXTENSIONS = (".zip", WHEEL_EXTENSION)
 TAR_EXTENSIONS = (".tar.gz", ".tgz", ".tar")
 ARCHIVE_EXTENSIONS = ZIP_EXTENSIONS + BZ2_EXTENSIONS + TAR_EXTENSIONS + XZ_EXTENSIONS
 
+DEFAULT_MOJOPROJECT_FILENAME = "mojoproject.toml"
+DEFAULT_CONFIG_FILENAME = "muse.toml"
+
 
 @contextlib.contextmanager
 def cd(path: str | Path) -> Iterator:
