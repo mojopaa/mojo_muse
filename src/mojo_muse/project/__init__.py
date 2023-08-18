@@ -227,7 +227,7 @@ class Project:
                             style="warning",
                         )
                         continue
-                    req = parse_requirement(line[3:].strip(), True)
+                    req = parse_requirement(line[3:].strip(), editable=True)
                 else:
                     req = parse_requirement(line)
                 # make editable packages behind normal ones to override correctly.

@@ -1,4 +1,6 @@
 """Generate and work with PEP 425 Compatibility Tags.
+
+Maybe it's also useful in muse.
 """
 from __future__ import annotations
 

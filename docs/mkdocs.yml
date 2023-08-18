@@ -1,0 +1,19 @@
+site_name: "Mojo-muse docs"
+
+nav:
+  - Home: index.md
+  - Devguide: devguide.md
+  - API: api.md
+  
+
+theme:
+  name: material
+
+plugins:
+- search
+- mkdocstrings:
+    handlers:
+      python:
+        options:
+          show_source: false
+          show_root_heading: true
