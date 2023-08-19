@@ -18,26 +18,27 @@ from mups import parse_ring_filename
 from packaging.specifiers import SpecifierSet
 from tomlkit.items import Array
 
-from ..auth import MuseBasicAuth, RepositoryConfigWithPassword
-from ..exceptions import (
+from .auth import MuseBasicAuth, RepositoryConfigWithPassword
+from .exceptions import (
     BuildError,
     CandidateNotFound,
     MuseUsageError,
     deprecation_warning,
 )
-from ..models.backends import BuildBackend, get_backend_by_spec
-from ..models.caches import HashCache, ProjectCache
-from ..models.candidates import (
+from .models.backends import BuildBackend, get_backend_by_spec
+from .models.caches import HashCache, ProjectCache
+from .models.candidates import (
     BasePreparedCandidate,
     Candidate,
     PreparedCandidate,
     make_candidate,
 )
-from ..models.config import Config
-from ..models.link import Link
-from ..models.project_file import MojoProjectFile
-from ..models.repositories import BaseRepository, LockedRepository, MojoPIRepository
-from ..models.requirements import (
+from .models.config import Config
+from .models.link import Link
+from .models.lockfile import Lockfile
+from .models.project_file import MojoProjectFile
+from .models.repositories import BaseRepository, LockedRepository, MojoPIRepository
+from .models.requirements import (
     BaseMuseRequirement,
     FileMuseRequirement,
     VcsMuseRequirement,
@@ -45,9 +46,9 @@ from ..models.requirements import (
     parse_requirement,
     strip_extras,
 )
-from ..models.vcs import vcs_support
-from ..termui import UI, SilentSpinner, Spinner, logger, ui
-from ..utils import (
+from .models.vcs import vcs_support
+from .termui import UI, SilentSpinner, Spinner, logger, ui
+from .utils import (
     DEFAULT_CONFIG_FILENAME,
     DEFAULT_MOJOPROJECT_FILENAME,
     FileHash,
@@ -60,7 +61,6 @@ from ..utils import (
     path_to_url,
     url_without_fragments,
 )
-from .lockfile import Lockfile
 
 
 class Project:
