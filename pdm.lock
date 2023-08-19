@@ -6,7 +6,7 @@ groups = ["default", "dev"]
 cross_platform = true
 static_urls = false
 lock_version = "4.3"
-content_hash = "sha256:d25b42f2fc2e7f30bdf3028531fdc4506eb55748d0387e564cd943e5fde73fdb"
+content_hash = "sha256:5e94429bb12e2d6ccc460cd868fb0752ed6df1d6ccdfed4fa9c89175a081ed99"
 
 [[package]]
 name = "appnope"
@@ -1096,6 +1096,16 @@ dependencies = [
 files = [
     {file = "SecretStorage-3.3.3-py3-none-any.whl", hash = "sha256:f356e6628222568e3af06f2eba8df495efa13b3b63081dafd4f7d9a7b7bc9f99"},
     {file = "SecretStorage-3.3.3.tar.gz", hash = "sha256:2403533ef369eca6d2ba81718576c5e0f564d5cca1b58f73a8b23e7d4eeebd77"},
+]
+
+[[package]]
+name = "semver"
+version = "3.0.1"
+requires_python = ">=3.7"
+summary = "Python helper for Semantic Versioning (https://semver.org)"
+files = [
+    {file = "semver-3.0.1-py3-none-any.whl", hash = "sha256:2a23844ba1647362c7490fe3995a86e097bb590d16f0f32dfc383008f19e4cdf"},
+    {file = "semver-3.0.1.tar.gz", hash = "sha256:9ec78c5447883c67b97f98c3b6212796708191d22e4ad30f4570f840171cbce1"},
 ]
 
 [[package]]

@@ -15,6 +15,7 @@ from urllib import parse
 from urllib.request import pathname2url, url2pathname
 
 from packaging.version import Version, _cmpkey
+from semver import Version as SemVer
 
 from ._types import FileHash
 
@@ -330,3 +331,27 @@ def splitext(path: str) -> tuple[str, str]:
 
 def resources_open_binary(package: str, resource: str) -> BinaryIO:
     return (importlib.resources.files(package) / resource).open("rb")
+
+
+def is_subset(superset, subset):
+    # Rough impl.
+    versions = []
+    for spec in subset:
+        vstr = str(spec).split(spec.operator)[-1]
+        try:
+            version = SemVer.parse(vstr)
+        except ValueError:  # semantic version is strict to have patch number.
+            vstr += ".0"
+            version = SemVer.parse(vstr)
+
+        if spec.operator == ">":
+            version = Version(str(version.bump_patch()))
+
+        elif spec.operator == "<":
+            version = SemVer(
+                major=version.major, minor=version.minor - 1, patch=version.patch
+            )
+            version = Version(str(version))
+
+        versions.append(version)
+    return all(version in superset for version in versions)

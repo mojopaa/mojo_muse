@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 
 from mojo_muse.utils import (
@@ -15,6 +16,7 @@ from mojo_muse.utils import (
     find_project_root,
     get_relative_path,
     get_rev_from_url,
+    is_subset,
     is_url,
     join_list_with,
     parse_netloc,
@@ -156,3 +158,12 @@ def test_create_tracked_tempdir():
 
 def test_splittext():
     assert splitext("/usr/local/test.tar.gz") == ("/usr/local/test", ".tar.gz")
+
+
+def test_is_subset():
+    super_set = SpecifierSet(">3.7")
+    sub_set = SpecifierSet(">3.7,<3.11")
+    fake_sub_set = SpecifierSet(">3.6,<3.11")
+
+    assert is_subset(superset=super_set, subset=sub_set)
+    assert is_subset(superset=super_set, subset=fake_sub_set) is False
