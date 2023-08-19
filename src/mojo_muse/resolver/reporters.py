@@ -6,11 +6,10 @@ from typing import Iterable
 from resolvelib import BaseReporter
 from resolvelib.resolvers import Criterion, RequirementInformation, State
 
-from .._types import Spinner
 from ..models.candidates import Candidate
 from ..models.requirements import BaseMuseRequirement
-from ..project import Project
 from ..termui import SilentSpinner
+from ..utils import Spinner
 
 logger = logging.getLogger("mojo_muse.termui")
 

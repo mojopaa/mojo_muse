@@ -15,12 +15,15 @@ from mups import normalize_name, parse_ring_filename
 from packaging.specifiers import SpecifierSet
 
 from .. import termui
-from .._types import CandidateInfo, FileHash, RepositoryConfig, SearchResult
 from ..exceptions import CandidateInfoNotFound, CandidateNotFound
 from ..termui import ui
 from ..utils import (
     DEFAULT_CONFIG_FILENAME,
     DEFAULT_MOJOPROJECT_FILENAME,
+    CandidateInfo,
+    FileHash,
+    RepositoryConfig,
+    SearchResult,
     cd,
     find_project_root,
     path_to_url,
@@ -104,7 +107,7 @@ class BaseRepository(ABC):
 
         Returns:
             SearchResult: search result, a dictionary of name: package metadata
-            In _types it's list[Package]
+            In utils it's list[Package]
         """
 
     @property

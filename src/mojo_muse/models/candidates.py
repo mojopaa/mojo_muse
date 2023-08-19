@@ -16,10 +16,12 @@ from typing import Any, cast
 from mups import normalize_name, parse_ring_filename
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 
-from .._types import CandidateInfo, FileHash, Package
 from ..exceptions import CandidateNotFound
 from ..termui import UI, logger
 from ..utils import (
+    CandidateInfo,
+    FileHash,
+    Package,
     cd,
     convert_hashes,
     create_tracked_tempdir,

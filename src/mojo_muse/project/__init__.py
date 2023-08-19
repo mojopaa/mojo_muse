@@ -18,7 +18,6 @@ from mups import parse_ring_filename
 from packaging.specifiers import SpecifierSet
 from tomlkit.items import Array
 
-from .._types import FileHash, RepositoryConfig
 from ..auth import MuseBasicAuth, RepositoryConfigWithPassword
 from ..exceptions import (
     BuildError,
@@ -51,6 +50,8 @@ from ..termui import UI, SilentSpinner, Spinner, logger, ui
 from ..utils import (
     DEFAULT_CONFIG_FILENAME,
     DEFAULT_MOJOPROJECT_FILENAME,
+    FileHash,
+    RepositoryConfig,
     cd,
     convert_hashes,
     expand_env_vars_in_auth,

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import atexit
 import contextlib
 import functools
@@ -8,17 +10,29 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from dataclasses import dataclass, field
 from pathlib import Path
 from re import Match
-from typing import IO, Any, BinaryIO, Iterator
+from typing import (
+    IO,
+    Any,
+    BinaryIO,
+    Dict,
+    Iterator,
+    List,
+    NamedTuple,
+    Protocol,
+    Tuple,
+    TypedDict,
+    TypeVar,
+    Union,
+)
 from urllib import parse
 from urllib.request import pathname2url, url2pathname
 
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version, _cmpkey
 from semver import Version as SemVer
-
-from ._types import FileHash
 
 WINDOWS = sys.platform == "win32"
 
@@ -37,6 +51,105 @@ ARCHIVE_EXTENSIONS = ZIP_EXTENSIONS + BZ2_EXTENSIONS + TAR_EXTENSIONS + XZ_EXTEN
 
 DEFAULT_MOJOPROJECT_FILENAME = "mojoproject.toml"
 DEFAULT_CONFIG_FILENAME = "muse.toml"
+
+
+@dataclass
+class _RepositoryConfig:
+    """Private dataclass to be subclassed"""
+
+    config_prefix: str
+    name: str
+
+    url: str | None = None
+    username: str | None = None
+    _password: str | None = field(default=None, repr=False)
+    verify_ssl: bool | None = None
+    type: str | None = None
+    ca_certs: str | None = None
+
+
+class RepositoryConfig(_RepositoryConfig):
+    """Removed auth.py deps. use auth.RepositoryConfigWithPassword instead if password is required"""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+
+    def passive_update(
+        self, other: RepositoryConfig | None = None, **kwargs: Any
+    ) -> None:
+        """An update method that prefers the existing value over the new one."""
+        if other is not None:
+            for k in other.__dataclass_fields__:
+                v = getattr(other, k)
+                if getattr(self, k) is None and v is not None:
+                    setattr(self, k, v)
+        for k, v in kwargs.items():
+            if getattr(self, k) is None and v is not None:
+                setattr(self, k, v)
+
+    def __rich__(self) -> str:
+        config_prefix = (
+            f"{self.config_prefix}.{self.name}."
+            if self.name
+            else f"{self.config_prefix}."
+        )
+        lines: list[str] = []
+        if self.url:
+            lines.append(f"[primary]{config_prefix}url[/] = {self.url}")
+        if self.username:
+            lines.append(f"[primary]{config_prefix}username[/] = {self.username}")
+        if self.password:
+            lines.append(f"[primary]{config_prefix}password[/] = [i]<hidden>[/]")
+        if self.verify_ssl is not None:
+            lines.append(f"[primary]{config_prefix}verify_ssl[/] = {self.verify_ssl}")
+        if self.type:
+            lines.append(f"[primary]{config_prefix}type[/] = {self.type}")
+        if self.ca_certs:
+            lines.append(f"[primary]{config_prefix}ca_certs[/] = {self.ca_certs}")
+        return "\n".join(lines)
+
+
+RequirementDict = Union[str, Dict[str, Union[str, bool]]]
+CandidateInfo = Tuple[List[str], str, str]
+
+
+class Package(NamedTuple):
+    name: str
+    version: str
+    summary: str
+
+
+SearchResult = List[Package]
+
+
+class Comparable(Protocol):
+    def __lt__(self, __other: Any) -> bool:
+        ...
+
+
+SpinnerT = TypeVar("SpinnerT", bound="Spinner")
+
+
+class Spinner(Protocol):
+    def update(self, text: str) -> None:
+        ...
+
+    def __enter__(self: SpinnerT) -> SpinnerT:
+        ...
+
+    def __exit__(self, *args: Any) -> None:
+        ...
+
+
+class RichProtocol(Protocol):
+    def __rich__(self) -> str:
+        ...
+
+
+class FileHash(TypedDict, total=False):
+    url: str
+    hash: str
+    file: str
 
 
 @contextlib.contextmanager

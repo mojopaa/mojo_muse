@@ -7,7 +7,6 @@ from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from resolvelib import AbstractProvider
 from resolvelib.resolvers import RequirementInformation
 
-from .._types import Comparable
 from ..models.candidates import Candidate, make_candidate
 from ..models.repositories import BaseRepository, LockedRepository
 from ..models.requirements import (
@@ -17,7 +16,7 @@ from ..models.requirements import (
     strip_extras,
 )
 from ..project import Project
-from ..utils import is_url, url_without_fragments
+from ..utils import Comparable, is_url, url_without_fragments
 from .mojo import (
     MojoCandidate,
     MojoRequirement,

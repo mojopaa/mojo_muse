@@ -13,7 +13,7 @@ from rich.prompt import Confirm, IntPrompt, Prompt
 from rich.table import Table
 from rich.theme import Theme
 
-from ._types import RichProtocol, Spinner, SpinnerT
+from .utils import RichProtocol, Spinner, SpinnerT
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)

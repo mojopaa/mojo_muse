@@ -14,9 +14,9 @@ from packaging.markers import Marker
 from packaging.requirements import InvalidRequirement, Requirement
 from packaging.specifiers import SpecifierSet
 
-from .._types import RequirementDict
 from ..exceptions import ExtrasWarning, RequirementError
 from ..utils import (
+    RequirementDict,
     add_ssh_scheme_to_git_uri,
     comparable_version,
     get_relative_path,

@@ -16,10 +16,9 @@ from requests.auth import AuthBase, HTTPBasicAuth
 from requests.models import PreparedRequest
 from requests.utils import get_netrc_auth
 
-from ._types import RepositoryConfig
 from .exceptions import MuseException
 from .termui import UI, Verbosity
-from .utils import split_auth_from_netloc, split_auth_from_url
+from .utils import RepositoryConfig, split_auth_from_netloc, split_auth_from_url
 
 KEYRING_DISABLED = False
 

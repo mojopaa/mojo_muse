@@ -12,9 +12,9 @@ import rich
 import tomlkit
 
 from .. import termui
-from .._types import RepositoryConfig
 from ..exceptions import MuseUsageError, NoConfigError
 from ..termui import ui
+from ..utils import RepositoryConfig
 
 REPOSITORY = "repository"
 SOURCE = "mojopi"
