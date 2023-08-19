@@ -64,8 +64,8 @@ class MuseBackend(BuildBackend):
     @classmethod
     def build_system(cls) -> BuildSystem:
         return {
-            "requires": ["pdm-backend"],
-            "build-backend": "pdm.backend",
+            "requires": ["muse-backend"],
+            "build-backend": "muse.backend",
         }
 
 
@@ -136,7 +136,7 @@ def get_backend(name: str) -> type[BuildBackend]:
 
 def get_backend_by_spec(spec: dict) -> type[BuildBackend]:
     """Get the build backend class by specification.
-    The parameter passed in is the 'build-system' section in pyproject.toml.
+    The parameter passed in is the 'build-system' section in mojoproject.toml.
     """
     if "build-backend" not in spec:
         return DEFAULT_BACKEND

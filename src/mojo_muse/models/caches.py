@@ -99,8 +99,8 @@ class HashCache:
     FAVORITE_HASH = "sha256"
     STRONG_HASHES = ("sha256", "sha384", "sha512")
 
-    def __init__(self, directory: Path) -> None:
-        self.directory = directory
+    def __init__(self, directory: Path | str) -> None:
+        self.directory = Path(directory)
 
     def _read_from_link(self, link: Link, session: Session) -> Iterable[bytes]:
         if link.is_file:
@@ -173,8 +173,8 @@ class WheelCache:
     one sdist, the one with most preferred tag will be returned.
     """
 
-    def __init__(self, directory: Path) -> None:
-        self.directory = directory
+    def __init__(self, directory: Path | str) -> None:
+        self.directory = Path(directory)
         self.ephemeral_directory = Path(
             create_tracked_tempdir(prefix="muse-wheel-cache-")
         )
@@ -273,15 +273,15 @@ def get_wheel_cache(directory: Path) -> WheelCache:
 
 
 class RingCache:
-    """Caches wheels so we do not need to rebuild them.
+    """Caches rings so we do not need to rebuild them.
 
     Rings are only cached when the URL contains egg-info or is a VCS repository
     with an *immutable* revision. There might be more than one rings built for
     one sdist, the one with most preferred tag will be returned.
     """
 
-    def __init__(self, directory: Path) -> None:
-        self.directory = directory
+    def __init__(self, directory: Path | str) -> None:
+        self.directory = Path(directory)
         self.ephemeral_directory = Path(
             create_tracked_tempdir(prefix="muse-ring-cache-")
         )
@@ -349,11 +349,11 @@ class RingCache:
             try:
                 name, *_, tags = parse_ring_filename(candidate.name)
             except ValueError:
-                logger.debug("Ignoring invalid cached wheel %s", candidate.name)
+                logger.debug("Ignoring invalid cached ring %s", candidate.name)
                 continue
             if canonical_name != canonicalize_name(name):
                 logger.debug(
-                    "Ignoring cached wheel %s with invalid project name %s, expected: %s",
+                    "Ignoring cached ring %s with invalid project name %s, expected: %s",
                     candidate.name,
                     name,
                     canonical_name,
@@ -370,11 +370,6 @@ class RingCache:
         return min(candidates, key=lambda x: x[0])[1]
 
 
-@lru_cache()
-def get_ring_cache(directory: Path) -> RingCache:
-    return RingCache(directory)
-
-
 KT = TypeVar("KT")
 VT = TypeVar("VT")
 
@@ -382,8 +377,8 @@ VT = TypeVar("VT")
 class JSONFileCache(Generic[KT, VT]):
     """A file cache that stores key-value pairs in a json file."""
 
-    def __init__(self, cache_file: Path) -> None:
-        self.cache_file = cache_file
+    def __init__(self, cache_file: Path | str) -> None:
+        self.cache_file = Path(cache_file)
         self._cache: dict[str, VT] = {}
         self._read_cache()
 
@@ -427,6 +422,11 @@ class JSONFileCache(Generic[KT, VT]):
     def clear(self) -> None:
         self._cache.clear()
         self._write_cache()
+
+
+@lru_cache()
+def get_ring_cache(directory: Path) -> RingCache:
+    return RingCache(directory)
 
 
 class ProjectCache:
