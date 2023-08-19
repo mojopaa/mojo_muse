@@ -440,9 +440,12 @@ class PySpecSet(SpecifierSet):
     def copy(self) -> PySpecSet:
         """Create a new specifierset that is same as the original one."""
         if self.is_impossible:
-            return (
-                ImpossiblePySpecSet()
-            )  # TODO: refactor out of this. def a BasePySpecSet to solve this subclass dep.
+            impossible_cls = [
+                cls
+                for cls in self.__class__.__subclasses__()
+                if "Impossible" in cls.__name__
+            ][0]
+            return impossible_cls()
         instance = self.__class__(str(self), False)
         instance._lower_bound = self._lower_bound
         instance._upper_bound = self._upper_bound
@@ -452,7 +455,12 @@ class PySpecSet(SpecifierSet):
     @lru_cache()
     def __and__(self, other: PySpecSet) -> PySpecSet:
         if any(s.is_impossible for s in (self, other)):
-            return ImpossiblePySpecSet()
+            impossible_cls = [
+                cls
+                for cls in self.__class__.__subclasses__()
+                if "Impossible" in cls.__name__
+            ][0]
+            return impossible_cls()
         if self.is_allow_all:
             return other.copy()
         elif other.is_allow_all:
