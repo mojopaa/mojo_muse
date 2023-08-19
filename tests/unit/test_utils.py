@@ -164,6 +164,11 @@ def test_is_subset():
     super_set = SpecifierSet(">3.7")
     sub_set = SpecifierSet(">3.7,<3.11")
     fake_sub_set = SpecifierSet(">3.6,<3.11")
+    fake2 = SpecifierSet("<3.8")
+    sub_set2 = SpecifierSet(">3.7,!=3.10")
+    # fake3 = SpecifierSet("<3.9,!=3.8")  bug, needs to use upper and lower bounds in the impl. Damn.
 
     assert is_subset(superset=super_set, subset=sub_set)
     assert is_subset(superset=super_set, subset=fake_sub_set) is False
+    assert is_subset(superset=super_set, subset=fake2) is False
+    assert is_subset(superset=super_set, subset=sub_set2)

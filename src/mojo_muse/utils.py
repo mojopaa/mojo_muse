@@ -14,6 +14,7 @@ from typing import IO, Any, BinaryIO, Iterator
 from urllib import parse
 from urllib.request import pathname2url, url2pathname
 
+from packaging.specifiers import SpecifierSet
 from packaging.version import Version, _cmpkey
 from semver import Version as SemVer
 
@@ -333,9 +334,11 @@ def resources_open_binary(package: str, resource: str) -> BinaryIO:
     return (importlib.resources.files(package) / resource).open("rb")
 
 
-def is_subset(superset, subset):
+def is_subset(superset: SpecifierSet, subset: SpecifierSet) -> bool:
     # Rough impl.
     versions = []
+    MAX_VER = Version("9999")
+    MIN_VER = Version("0.0.1")
     for spec in subset:
         vstr = str(spec).split(spec.operator)[-1]
         try:
@@ -353,5 +356,13 @@ def is_subset(superset, subset):
             )
             version = Version(str(version))
 
-        versions.append(version)
+        versions.append(Version(str(version)))
+
+    if len(subset) == 1:
+        for spec in subset:
+            if ">" in spec.operator:
+                versions.append(MAX_VER)
+            elif "<" in spec.operator:
+                versions.append(MIN_VER)
+    # print([type(version) for version in versions])
     return all(version in superset for version in versions)
