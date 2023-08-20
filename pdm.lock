@@ -6,7 +6,7 @@ groups = ["default", "dev"]
 cross_platform = true
 static_urls = false
 lock_version = "4.3"
-content_hash = "sha256:5e94429bb12e2d6ccc460cd868fb0752ed6df1d6ccdfed4fa9c89175a081ed99"
+content_hash = "sha256:82635eccdad46f999c409a2e86f51e2d76a9d9f309c9f588dc27cad00cc1d63a"
 
 [[package]]
 name = "appnope"
@@ -321,6 +321,19 @@ summary = "Get the currently executing AST node of a frame, and other informatio
 files = [
     {file = "executing-1.2.0-py2.py3-none-any.whl", hash = "sha256:0314a69e37426e3608aada02473b4161d4caf5a4b244d1d0c48072b8fee7bacc"},
     {file = "executing-1.2.0.tar.gz", hash = "sha256:19da64c18d2d851112f09c287f8d3dbbdf725ab0e569077efb6cdcbd3497c107"},
+]
+
+[[package]]
+name = "findpython"
+version = "0.3.1"
+requires_python = ">=3.7"
+summary = "A utility to find python versions on your system"
+dependencies = [
+    "packaging>=20",
+]
+files = [
+    {file = "findpython-0.3.1-py3-none-any.whl", hash = "sha256:b57a67fc95cc687bfcfa4944c730a5e368b8cbe20f84ad4cdbc9d6bfe128f50b"},
+    {file = "findpython-0.3.1.tar.gz", hash = "sha256:7621f8a9c199a70d219831cddaeb84ca7e83e20b8358172bff47871a18a5eda4"},
 ]
 
 [[package]]
@@ -1106,6 +1119,16 @@ summary = "Python helper for Semantic Versioning (https://semver.org)"
 files = [
     {file = "semver-3.0.1-py3-none-any.whl", hash = "sha256:2a23844ba1647362c7490fe3995a86e097bb590d16f0f32dfc383008f19e4cdf"},
     {file = "semver-3.0.1.tar.gz", hash = "sha256:9ec78c5447883c67b97f98c3b6212796708191d22e4ad30f4570f840171cbce1"},
+]
+
+[[package]]
+name = "setuptools"
+version = "68.1.2"
+requires_python = ">=3.8"
+summary = "Easily download, build, install, upgrade, and uninstall Python packages"
+files = [
+    {file = "setuptools-68.1.2-py3-none-any.whl", hash = "sha256:3d8083eed2d13afc9426f227b24fd1659489ec107c0e86cec2ffdde5c92e790b"},
+    {file = "setuptools-68.1.2.tar.gz", hash = "sha256:3d4dfa6d95f1b101d695a6160a7626e15583af71a5f52176efa5d39a054d475d"},
 ]
 
 [[package]]

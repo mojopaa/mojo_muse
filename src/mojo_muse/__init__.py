@@ -7,6 +7,7 @@ from .exceptions import (
     MuseException,
     MuseUsageError,
     NoConfigError,
+    NoPythonVersion,
     RequirementError,
     UnpackError,
     URLError,

@@ -12,10 +12,16 @@ from mojo_muse.utils import (
     compare_urls,
     convert_hashes,
     create_tracked_tempdir,
+    display_path,
     expand_env_vars_in_auth,
     find_project_root,
+    find_python_in_path,
     get_relative_path,
     get_rev_from_url,
+    get_trusted_hosts,
+    get_venv_like_prefix,
+    is_archive_file,
+    is_path_relative_to,
     is_subset,
     is_url,
     join_list_with,
@@ -172,3 +178,32 @@ def test_is_subset():
     assert is_subset(superset=super_set, subset=fake_sub_set) is False
     assert is_subset(superset=super_set, subset=fake2) is False
     assert is_subset(superset=super_set, subset=sub_set2)
+
+
+def test_is_archive_file():
+    assert is_archive_file("file.tar.gz")
+    assert is_archive_file("file.tar.bz2")
+    assert is_archive_file("file.zip")
+    assert is_archive_file("file.tar")
+    assert is_archive_file("file") is False
+
+
+def test_display_path():
+    assert "test_utils.py" in display_path(Path(__file__))
+
+
+def test_get_trusted_hosts():  # TODO
+    pass
+
+
+def test_is_path_relative_to():
+    assert is_path_relative_to(Path(__file__), Path(__file__).parent)
+    assert is_path_relative_to(Path(__file__).parent, Path(__file__)) is False
+
+
+def test_get_venv_like_prefix():  # TODO
+    pass
+
+
+def test_find_python_in_path():  # TODO
+    pass

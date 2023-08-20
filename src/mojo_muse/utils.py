@@ -4,6 +4,7 @@ import atexit
 import contextlib
 import functools
 import importlib.resources
+import itertools
 import os
 import re
 import shutil
@@ -17,11 +18,14 @@ from typing import (
     IO,
     Any,
     BinaryIO,
+    ContextManager,
     Dict,
+    Iterable,
     Iterator,
     List,
     NamedTuple,
     Protocol,
+    Sequence,
     Tuple,
     TypedDict,
     TypeVar,
@@ -51,6 +55,45 @@ ARCHIVE_EXTENSIONS = ZIP_EXTENSIONS + BZ2_EXTENSIONS + TAR_EXTENSIONS + XZ_EXTEN
 
 DEFAULT_MOJOPROJECT_FILENAME = "mojoproject.toml"
 DEFAULT_CONFIG_FILENAME = "muse.toml"
+
+
+def is_archive_file(name: str) -> bool:
+    """Return True if `name` is a considered as an archive file."""
+    ext = splitext(name)[1].lower()
+    return ext in ARCHIVE_EXTENSIONS
+
+
+T = TypeVar("T", covariant=True)
+
+
+class LazySequence(Sequence[T]):
+    """A sequence that is lazily evaluated."""
+
+    def __init__(self, data: Iterable[T]) -> None:
+        self._inner = data
+
+    def __iter__(self) -> Iterator[T]:
+        self._inner, this = itertools.tee(self._inner)
+        return this
+
+    def __len__(self) -> int:
+        i = 0
+        for _ in self:
+            i += 1
+        return i
+
+    def __bool__(self) -> bool:
+        for _ in self:
+            return True
+        return False
+
+    def __getitem__(self, index: int) -> T:  # type: ignore[override]
+        if index < 0:
+            raise IndexError("Negative indices are not supported")
+        for i, item in enumerate(self):
+            if i == index:
+                return item
+        raise IndexError("Index out of range")
 
 
 @dataclass
@@ -447,6 +490,10 @@ def resources_open_binary(package: str, resource: str) -> BinaryIO:
     return (importlib.resources.files(package) / resource).open("rb")
 
 
+def resources_path(package: str, resource: str) -> ContextManager[Path]:
+    return importlib.resources.as_file(importlib.resources.files(package) / resource)
+
+
 def is_subset(superset: SpecifierSet, subset: SpecifierSet) -> bool:
     # Rough impl.
     versions = []
@@ -479,3 +526,84 @@ def is_subset(superset: SpecifierSet, subset: SpecifierSet) -> bool:
                 versions.append(MIN_VER)
     # print([type(version) for version in versions])
     return all(version in superset for version in versions)
+
+
+def display_path(path: Path) -> str:
+    """Show the path relative to cwd if possible"""
+    if not path.is_absolute():
+        return str(path)
+    try:
+        relative = path.absolute().relative_to(Path.cwd())
+    except ValueError:
+        return str(path)
+    else:
+        return str(relative)
+
+
+def get_trusted_hosts(sources: list[RepositoryConfig]) -> list[str]:
+    """Parse the project sources and return the trusted hosts"""
+    trusted_hosts = []
+    for source in sources:
+        assert source.url
+        url = source.url
+        netloc = parse.urlparse(url).netloc
+        host = netloc.rsplit("@", 1)[-1]
+        if host not in trusted_hosts and source.verify_ssl is False:
+            trusted_hosts.append(host)
+    return trusted_hosts
+
+
+def is_path_relative_to(path: str | Path, other: str | Path) -> bool:
+    try:
+        Path(path).relative_to(other)
+    except ValueError:
+        return False
+    return True
+
+
+def get_venv_like_prefix(interpreter: str | Path) -> tuple[Path | None, bool]:
+    """Check if the given interpreter path is from a virtualenv,
+    and return two values: the root path and whether it's a conda env.
+    """
+    interpreter = Path(interpreter)
+    prefix = interpreter.parent
+    if prefix.joinpath("conda-meta").exists():
+        return prefix, True
+
+    prefix = prefix.parent
+    if prefix.joinpath("pyvenv.cfg").exists():
+        return prefix, False
+    if prefix.joinpath("conda-meta").exists():
+        return prefix, True
+
+    virtual_env = os.getenv("VIRTUAL_ENV")
+    if virtual_env and is_path_relative_to(interpreter, virtual_env):
+        return Path(virtual_env), False
+    virtual_env = os.getenv("CONDA_PREFIX")
+    if virtual_env and is_path_relative_to(interpreter, virtual_env):
+        return Path(virtual_env), True
+    return None, False
+
+
+def find_python_in_path(path: str | Path) -> Path | None:
+    """Find a python interpreter from the given path, the input argument could be:
+
+    - A valid path to the interpreter
+    - A Python root directory that contains the interpreter
+    """
+    pathlib_path = Path(path).absolute()
+    if pathlib_path.is_file():
+        return pathlib_path
+
+    if os.name == "nt":
+        for root_dir in (pathlib_path, pathlib_path / "Scripts"):
+            if root_dir.joinpath("python.exe").exists():
+                return root_dir.joinpath("python.exe")
+    else:
+        executable_pattern = re.compile(r"python(?:\d(?:\.\d+m?)?)?$")
+
+        for python in pathlib_path.joinpath("bin").glob("python*"):
+            if executable_pattern.match(python.name):
+                return python
+
+    return None

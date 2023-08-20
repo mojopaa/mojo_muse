@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import collections
 import contextlib
 import hashlib
@@ -10,10 +11,11 @@ import sys
 import warnings
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, cast
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, Self, cast
 
 import platformdirs
 import tomlkit
+from findpython import BaseProvider, Finder, PythonVersion
 from mups import parse_ring_filename
 from packaging.specifiers import SpecifierSet
 from tomlkit.items import Array
@@ -23,6 +25,7 @@ from .exceptions import (
     BuildError,
     CandidateNotFound,
     MuseUsageError,
+    NoPythonVersion,
     deprecation_warning,
 )
 from .models.backends import BuildBackend, get_backend_by_spec
@@ -37,6 +40,7 @@ from .models.config import Config
 from .models.link import Link
 from .models.lockfile import Lockfile
 from .models.project_file import MojoProjectFile
+from .models.python import PythonInfo
 from .models.repositories import BaseRepository, LockedRepository, MojoPIRepository
 from .models.requirements import (
     BaseMuseRequirement,
@@ -47,6 +51,7 @@ from .models.requirements import (
     strip_extras,
 )
 from .models.vcs import vcs_support
+from .models.venv import VirtualEnv, get_in_project_venv, get_venv_python
 from .termui import UI, SilentSpinner, Spinner, logger, ui
 from .utils import (
     DEFAULT_CONFIG_FILENAME,
@@ -57,10 +62,20 @@ from .utils import (
     convert_hashes,
     expand_env_vars_in_auth,
     find_project_root,
+    find_python_in_path,
     get_rev_from_url,
     path_to_url,
     url_without_fragments,
 )
+
+PYENV_ROOT = os.path.expanduser(os.getenv("PYENV_ROOT", "~/.pyenv"))
+
+
+def hash_path(path: str) -> str:
+    """Generate a hash for the given path."""
+    return base64.urlsafe_b64encode(
+        hashlib.new("md5", path.encode(), usedforsecurity=False).digest()
+    ).decode()[:8]
 
 
 class Project:
@@ -86,7 +101,7 @@ class Project:
     ) -> None:
         self.ui = ui
         self._lockfile: Lockfile | None = None
-        # self._python: PythonInfo | None = None
+        self._python: PythonInfo | None = None
 
         if global_config is None:
             global_config = platformdirs.user_config_path("muse") / "config.toml"
@@ -185,6 +200,172 @@ class Project:
             source.url = expand_env_vars_in_auth(source.url)
             sources.append(source)
         return sources
+
+    def get_venv_prefix(self) -> str:
+        """Get the venv prefix for the project"""
+        path = self.root
+        name_hash = hash_path(path.as_posix())
+        return f"{path.name}-{name_hash}-"
+
+    def iter_venvs(self) -> Iterable[tuple[str, VirtualEnv]]:
+        """Return an iterable of venv paths associated with the project"""
+        in_project_venv = get_in_project_venv(self.root)
+        if in_project_venv is not None:
+            yield "in-project", in_project_venv
+        venv_prefix = self.get_venv_prefix()
+        venv_parent = Path(self.config["venv.location"])
+        for path in venv_parent.glob(f"{venv_prefix}*"):
+            ident = path.name[len(venv_prefix) :]
+            venv = VirtualEnv.get(path)
+            if venv is not None:
+                yield ident, venv
+
+    def _get_python_finder(self) -> Finder:
+        class VenvProvider(BaseProvider):
+            """A Python provider for project venv pythons"""
+
+            def __init__(self, project: Project) -> None:
+                self.project = project
+
+            @classmethod
+            def create(cls) -> Self | None:
+                return None
+
+            def find_pythons(self) -> Iterable[PythonVersion]:
+                for _, venv in self.project.iter_venvs():
+                    yield PythonVersion(
+                        venv.interpreter,
+                        _interpreter=venv.interpreter,
+                        keep_symlink=True,
+                    )
+
+        providers: list[str] = self.config["python.providers"]
+        finder = Finder(resolve_symlinks=True, selected_providers=providers or None)
+        if self.config["python.use_venv"] and (not providers or "venv" in providers):
+            venv_pos = providers.index("venv") if providers else 0
+            finder.add_provider(VenvProvider(project=self), venv_pos)
+        return finder
+
+    def find_interpreters(self, python_spec: str | None = None) -> Iterable[PythonInfo]:
+        """Return an iterable of interpreter paths that matches the given specifier,
+        which can be:
+            1. a version specifier like 3.7
+            2. an absolute path
+            3. a short name like python3
+            4. None that returns all possible interpreters
+        """
+        config = self.config
+        python: str | Path | None = None
+
+        if not python_spec:
+            if config.get("python.use_pyenv", True) and os.path.exists(PYENV_ROOT):
+                pyenv_shim = os.path.join(PYENV_ROOT, "shims", "python3")
+                if os.name == "nt":
+                    pyenv_shim += ".bat"
+                if os.path.exists(pyenv_shim):
+                    yield PythonInfo.from_path(pyenv_shim)
+                elif os.path.exists(pyenv_shim.replace("python3", "python")):
+                    yield PythonInfo.from_path(pyenv_shim.replace("python3", "python"))
+            python = shutil.which("python") or shutil.which("python3")
+            if python:
+                yield PythonInfo.from_path(python)
+            args = []
+        else:
+            if not all(c.isdigit() for c in python_spec.split(".")):
+                path = Path(python_spec)
+                if path.exists():
+                    python = find_python_in_path(python_spec)
+                    if python:
+                        yield PythonInfo.from_path(python)
+                if len(path.parts) == 1:  # only check for spec with only one part
+                    python = shutil.which(python_spec)
+                    if python:
+                        yield PythonInfo.from_path(python)
+                return
+            args = [int(v) for v in python_spec.split(".") if v != ""]
+        finder = self._get_python_finder()
+        for entry in finder.find_all(*args):
+            yield PythonInfo(entry)
+        if not python_spec:
+            # Lastly, return the host Python as well
+            this_python = getattr(sys, "_base_executable", sys.executable)
+            yield PythonInfo.from_path(this_python)
+
+    def resolve_interpreter(self) -> PythonInfo:
+        """Get the Python interpreter path."""
+
+        def match_version(python: PythonInfo) -> bool:
+            return python.valid and self.requires_python.contains(python.version, True)
+
+        def note(message: str) -> None:
+            if not self.is_global:
+                self.ui.echo(message, style="info", err=True)
+
+        config = self.config
+        saved_path = self._saved_python
+        if saved_path and not os.getenv("MUSE_IGNORE_SAVED_PYTHON"):
+            python = PythonInfo.from_path(saved_path)
+            if match_version(python):
+                return python
+            else:
+                note(
+                    "The saved Python interpreter doesn't match the project's requirement. "
+                    "Trying to find another one."
+                )
+            self._saved_python = None  # Clear the saved path if it doesn't match
+
+        if (
+            config.get("python.use_venv")
+            and not self.is_global
+            and not os.getenv("PDM_IGNORE_ACTIVE_VENV")
+        ):
+            # Resolve virtual environments from env-vars
+            venv_in_env = os.getenv("VIRTUAL_ENV", os.getenv("CONDA_PREFIX"))
+            if venv_in_env:
+                python = PythonInfo.from_path(get_venv_python(Path(venv_in_env)))
+                if match_version(python):
+                    note(
+                        f"Inside an active virtualenv [success]{venv_in_env}[/], reusing it.\n"
+                        "Set env var [success]PDM_IGNORE_ACTIVE_VENV[/] to ignore it."
+                    )
+                    return python
+            # otherwise, get a venv associated with the project
+            for _, venv in self.iter_venvs():
+                python = PythonInfo.from_path(venv.interpreter)
+                if match_version(python):
+                    note(f"Virtualenv [success]{venv.root}[/] is reused.")
+                    self.python = python
+                    return python
+
+            if not self.root.joinpath("__pypackages__").exists():
+                note("python.use_venv is on, creating a virtualenv for this project...")
+                venv_path = self._create_virtualenv()
+                self.python = PythonInfo.from_path(get_venv_python(venv_path))
+                return self.python
+
+        for py_version in self.find_interpreters():
+            if match_version(py_version):
+                if config.get("python.use_venv"):
+                    note(
+                        "[success]__pypackages__[/] is detected, using the PEP 582 mode"
+                    )
+                self.python = py_version
+                return py_version
+
+        raise NoPythonVersion(
+            f"No Python that satisfies {self.python_requires} is found on the system."
+        )
+
+    @property
+    def python(self) -> PythonInfo:
+        if not self._python:
+            self._python = self.resolve_interpreter()
+            if self._python.major < 3:
+                raise MuseUsageError(
+                    "Python 2.7 has reached EOL and PDM no longer supports it. "
+                    "Please upgrade your Python to 3.6 or later.",
+                )
+        return self._python
 
     def __repr__(self) -> str:
         return f"<Project '{self.root.as_posix()}'>"

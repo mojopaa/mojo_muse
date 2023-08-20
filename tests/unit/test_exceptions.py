@@ -9,6 +9,7 @@ from mojo_muse import (
     MuseException,
     MuseUsageError,
     NoConfigError,
+    NoPythonVersion,
     RequirementError,
     UnpackError,
     URLError,
@@ -56,3 +57,6 @@ def test_raise():
 
     with pytest.warns(FutureWarning):
         deprecation_warning("")
+
+    with pytest.raises(NoPythonVersion):
+        raise NoPythonVersion()
