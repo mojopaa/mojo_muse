@@ -25,6 +25,7 @@ from mojo_muse.utils import (
     is_subset,
     is_url,
     join_list_with,
+    merge_dictionary,
     parse_netloc,
     parse_query,
     path_to_url,
@@ -207,3 +208,9 @@ def test_get_venv_like_prefix():  # TODO
 
 def test_find_python_in_path():  # TODO
     pass
+
+
+def test_merge_dictionary():
+    d = {"a": [1]}
+    merge_dictionary(d, {"a": [2]})
+    assert d == {"a": [1, 2]}

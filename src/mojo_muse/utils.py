@@ -23,6 +23,8 @@ from typing import (
     Iterable,
     Iterator,
     List,
+    Mapping,
+    MutableMapping,
     NamedTuple,
     Protocol,
     Sequence,
@@ -606,3 +608,26 @@ def find_python_in_path(path: str | Path) -> Path | None:
                 return python
 
     return None
+
+
+def merge_dictionary(
+    target: MutableMapping[Any, Any],
+    input: Mapping[Any, Any],
+    append_array: bool = True,
+) -> None:
+    """Merge the input dict with the target while preserving the existing values
+    properly. This will update the target dictionary in place.
+    List values will be extended, but only if the value is not already in the list.
+    """
+    for key, value in input.items():
+        if key not in target:
+            target[key] = value
+        elif isinstance(value, dict):
+            merge_dictionary(target[key], value, append_array=append_array)
+        elif isinstance(value, list) and append_array:
+            target[key].extend(x for x in value if x not in target[key])
+            if hasattr(target[key], "multiline"):
+                target[key].multiline(True)  # type: ignore[attr-defined]
+        else:
+            target[key] = value
+    return target

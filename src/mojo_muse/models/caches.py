@@ -28,7 +28,7 @@ from ..utils import (
     find_project_root,
     url_without_fragments,
 )
-from .config import Config, DEFAULT_CONFIG_FILENAME
+from .config import DEFAULT_CONFIG_FILENAME, Config
 from .link import Link
 
 
