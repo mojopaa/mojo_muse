@@ -17,7 +17,7 @@ from mups import normalize_name, parse_ring_filename
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 
 from ..exceptions import CandidateNotFound
-from ..termui import UI, logger
+from ..termui import UI, logger, ui
 from ..utils import (
     CandidateInfo,
     FileHash,

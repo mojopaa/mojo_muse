@@ -18,7 +18,7 @@ from ..utils import merge_dictionary
 
 ST = TypeVar("ST", Traversable, Path)
 
-BUILTIN_TEMPLATE = "pdm.cli.templates.default"
+BUILTIN_TEMPLATE = "mojo_muse.templates.default"
 
 
 class PyProjectTemplate:

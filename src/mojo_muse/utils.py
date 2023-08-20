@@ -56,6 +56,7 @@ TAR_EXTENSIONS = (".tar.gz", ".tgz", ".tar")
 ARCHIVE_EXTENSIONS = ZIP_EXTENSIONS + BZ2_EXTENSIONS + TAR_EXTENSIONS + XZ_EXTENSIONS
 
 DEFAULT_MOJOPROJECT_FILENAME = "mojoproject.toml"
+DEFAULT_PYPROJECT_FILENAME = "pyproject.toml"
 
 
 def is_archive_file(name: str) -> bool:

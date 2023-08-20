@@ -36,11 +36,11 @@ from .models.candidates import (
     PreparedCandidate,
     make_candidate,
 )
-from .models.config import Config
+from .models.config import DEFAULT_CONFIG_FILENAME, Config
+from .models.info import PythonInfo, MojoInfo
 from .models.link import Link
 from .models.lockfile import Lockfile
-from .models.project_file import MojoProjectFile
-from .models.python import PythonInfo
+from .models.project_file import MojoProjectFile, PyProjectFile
 from .models.repositories import BaseRepository, LockedRepository, MojoPIRepository
 from .models.requirements import (
     BaseMuseRequirement,
@@ -54,8 +54,8 @@ from .models.vcs import vcs_support
 from .models.venv import VirtualEnv, get_in_project_venv, get_venv_python
 from .termui import UI, SilentSpinner, Spinner, logger, ui
 from .utils import (
-    DEFAULT_CONFIG_FILENAME,
     DEFAULT_MOJOPROJECT_FILENAME,
+    DEFAULT_PYPROJECT_FILENAME,
     FileHash,
     RepositoryConfig,
     cd,
@@ -89,12 +89,13 @@ class Project:
     """
 
     MOJOPROJECT_FILENAME = DEFAULT_MOJOPROJECT_FILENAME
+    PYPROJECT_FILENAME = DEFAULT_PYPROJECT_FILENAME
     LOCKFILE_FILENAME = "muse.lock"
     DEPENDENCIES_RE = re.compile(r"(?:(.+?)-)?dependencies")
 
     def __init__(
         self,
-        root_path: str | Path | None,
+        root_path: str | Path | None = None,
         ui: UI = ui,
         is_global: bool = False,
         global_config: str | Path | None = None,
@@ -102,10 +103,12 @@ class Project:
         self.ui = ui
         self._lockfile: Lockfile | None = None
         self._python: PythonInfo | None = None
+        self._mojo: MojoInfo | None = None
 
         if global_config is None:
             global_config = platformdirs.user_config_path("muse") / "config.toml"
-        self.global_config = Config(Path(global_config), is_global=True)
+        self.global_config_path = Path(global_config)
+        self.global_config = Config(self.global_config_path, is_global=True)
         global_project = Path(self.global_config["global_project.path"])
 
         if root_path is None:
@@ -131,7 +134,7 @@ class Project:
         self.root: Path = Path(root_path or "").absolute()
 
         self.project_cache = ProjectCache(
-            root_path=self.root, global_config=self.global_config
+            root_path=self.root, global_config=self.global_config_path
         )
         self.is_global = is_global
         self.auth = MuseBasicAuth(self.ui, self.sources)
@@ -149,6 +152,10 @@ class Project:
     @cached_property
     def mojoproject(self) -> MojoProjectFile:
         return MojoProjectFile(self.root / self.MOJOPROJECT_FILENAME, ui=self.ui)
+
+    @cached_property
+    def pyproject(self) -> PyProjectFile:
+        return PyProjectFile(self.root / self.PYPROJECT_FILENAME, ui=self.ui)
 
     @cached_property
     def config(self) -> Mapping[str, Any]:
@@ -366,6 +373,36 @@ class Project:
                     "Please upgrade your Python to 3.6 or later.",
                 )
         return self._python
+    
+    @property
+    def mojo(self) -> MojoInfo:
+        if not self._mojo:
+            pass  # TODO: self.resolve_mojo_compiler()
+        return self._mojo
+    
+    @property
+    def _saved_python(self) -> str | None:
+        if os.getenv("PDM_PYTHON"):
+            return os.getenv("PDM_PYTHON")
+        with contextlib.suppress(FileNotFoundError):
+            return self.root.joinpath(".pdm-python").read_text("utf-8").strip()
+        with contextlib.suppress(FileNotFoundError):
+            # TODO: remove this in the future
+            with self.root.joinpath(".pdm.toml").open("rb") as fp:
+                data = tomlkit.load(fp)
+                if data.get("python", {}).get("path"):
+                    return data["python"]["path"]
+        return None
+
+    @_saved_python.setter
+    def _saved_python(self, value: str | None) -> None:
+        self.root.mkdir(parents=True, exist_ok=True)
+        python_file = self.root.joinpath(".pdm-python")
+        if value is None:
+            with contextlib.suppress(FileNotFoundError):
+                python_file.unlink()
+            return
+        python_file.write_text(value, "utf-8")
 
     def __repr__(self) -> str:
         return f"<Project '{self.root.as_posix()}'>"

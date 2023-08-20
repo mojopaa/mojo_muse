@@ -18,7 +18,6 @@ from .. import termui
 from ..exceptions import CandidateInfoNotFound, CandidateNotFound
 from ..termui import ui
 from ..utils import (
-    DEFAULT_CONFIG_FILENAME,
     DEFAULT_MOJOPROJECT_FILENAME,
     CandidateInfo,
     FileHash,
@@ -30,9 +29,9 @@ from ..utils import (
     url_to_path,
     url_without_fragments,
 )
-from .caches import CandidateInfoCache, ProjectCache
-from .candidates import Candidate, make_candidate
-from .config import Config
+from .caches import ProjectCache
+from .candidates import Candidate, make_candidate, CandidateInfoCache
+from .config import Config, DEFAULT_CONFIG_FILENAME
 from .link import Link
 from .project_file import MojoProjectFile
 from .requirements import (

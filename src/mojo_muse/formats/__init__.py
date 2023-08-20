@@ -7,6 +7,7 @@ from typing import Iterable, Mapping, Protocol, Union
 from ..models.candidates import Candidate
 from ..models.requirements import BaseMuseRequirement
 from ..project import Project
+from .base import array_of_inline_tables, make_array, make_inline_table
 
 ExportItems = Union[Iterable[Candidate], Iterable[BaseMuseRequirement]]
 

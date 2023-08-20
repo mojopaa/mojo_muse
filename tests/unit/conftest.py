@@ -1,5 +1,4 @@
 import pytest
-
 from mojo_muse.session import MojoPISession
 
 
