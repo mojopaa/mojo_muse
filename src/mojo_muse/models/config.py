@@ -19,6 +19,7 @@ from ..utils import RepositoryConfig
 REPOSITORY = "repository"
 SOURCE = "mojopi"
 DEFAULT_MOJOPI_INDEX = "http://127.0.0.1:5000"  # TODO: parameterize this
+DEFAULT_PYPI_INDEX = "https://pypi.org/simple"
 
 DEFAULT_REPOSITORIES = {
     "local_mojopi": "https://127.0.0.1:5000",
@@ -172,10 +173,50 @@ class Config(MutableMapping[str, str]):
             default=[],
             coerce=split_by_comma,
         ),
+        "python.use_pyenv": ConfigItem(
+            "Use the pyenv interpreter", True, coerce=ensure_boolean
+        ),
         "python.use_venv": ConfigItem(
             "Use virtual environments when available",
             True,
             env_var="MUSE_USE_VENV",
+            coerce=ensure_boolean,
+        ),
+        "pypi.url": ConfigItem(
+            "The URL of PyPI mirror, defaults to https://pypi.org/simple",
+            DEFAULT_PYPI_INDEX,
+            env_var="PDM_PYPI_URL",
+        ),
+        "pypi.verify_ssl": ConfigItem(
+            "Verify SSL certificate when query PyPI", True, coerce=ensure_boolean
+        ),
+        "pypi.username": ConfigItem(
+            "The username to access PyPI", env_var="PDM_PYPI_USERNAME"
+        ),
+        "pypi.password": ConfigItem(
+            "The password to access PyPI", env_var="PDM_PYPI_PASSWORD"
+        ),
+        "pypi.ca_certs": ConfigItem(
+            "Path to a CA certificate bundle used for verifying the identity of the PyPI server",
+            global_only=True,
+        ),
+        "pypi.ignore_stored_index": ConfigItem(
+            "Ignore the configured indexes",
+            False,
+            env_var="PDM_IGNORE_STORED_INDEX",
+            coerce=ensure_boolean,
+        ),
+        "pypi.client_cert": ConfigItem(
+            "Path to client certificate file, or combined cert/key file",
+            global_only=True,
+        ),
+        "pypi.client_key": ConfigItem(
+            "Path to client cert keyfile, if not in pypi.client_cert", global_only=True
+        ),
+        "pypi.json_api": ConfigItem(
+            "Consult PyPI's JSON API for package metadata",
+            False,
+            env_var="PDM_PYPI_JSON_API",
             coerce=ensure_boolean,
         ),
         "mojopi.url": ConfigItem(

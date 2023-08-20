@@ -4,6 +4,7 @@ from .exceptions import (
     CandidateNotFound,
     ExtrasWarning,
     InvalidPyVersion,
+    LinkCollectError,
     MuseException,
     MuseUsageError,
     NoConfigError,

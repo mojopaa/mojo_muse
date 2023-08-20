@@ -11,6 +11,7 @@ from urllib import parse
 
 from requests.models import Response
 
+from .exceptions import LinkCollectError
 from .models.link import Link
 from .session import PyPISession
 from .utils import is_archive_file, path_to_url
@@ -21,10 +22,6 @@ SUPPORTED_CONTENT_TYPES = (
     "application/vnd.pypi.simple.v1+json",
 )
 logger = logging.getLogger(__name__)
-
-
-class LinkCollectError(Exception):
-    pass
 
 
 class IndexPage(NamedTuple):

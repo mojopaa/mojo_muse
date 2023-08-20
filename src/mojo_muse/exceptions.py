@@ -98,3 +98,7 @@ class HashMismatchError(UnpackError):
         return f"Hash mismatch for {self.link.redacted}:\n" + "\n".join(
             self.format_hash_item(name) for name in sorted(self.expected)
         )
+
+
+class LinkCollectError(Exception):
+    pass
