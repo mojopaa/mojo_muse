@@ -21,7 +21,6 @@ from ..exceptions import MuseException
 from ..session import Session
 from ..termui import logger
 from ..utils import (
-    DEFAULT_CONFIG_FILENAME,
     DEFAULT_MOJOPROJECT_FILENAME,
     atomic_open_for_write,
     convert_hashes,
@@ -29,7 +28,7 @@ from ..utils import (
     find_project_root,
     url_without_fragments,
 )
-from .config import Config
+from .config import Config, DEFAULT_CONFIG_FILENAME
 from .link import Link
 
 

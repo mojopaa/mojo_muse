@@ -14,7 +14,7 @@ import tomlkit
 from .. import termui
 from ..exceptions import MuseUsageError, NoConfigError
 from ..termui import ui
-from ..utils import RepositoryConfig
+from ..utils import RepositoryConfig, find_project_root
 
 REPOSITORY = "repository"
 SOURCE = "mojopi"
@@ -24,6 +24,7 @@ DEFAULT_PYPI_INDEX = "https://pypi.org/simple"
 DEFAULT_REPOSITORIES = {
     "local_mojopi": "https://127.0.0.1:5000",
 }
+DEFAULT_CONFIG_FILENAME = "muse.toml"
 
 
 def ensure_boolean(val) -> bool:
@@ -306,9 +307,12 @@ class Config(MutableMapping[str, str]):
         """Add or modify a config item"""
         cls._config_map[name] = item
 
-    def __init__(self, config_file: Path, is_global: bool = False):
+    def __init__(self, config_file: Path | str | None = None, is_global: bool = False):
         self.is_global = is_global
-        self.config_file = config_file.resolve()
+        if config_file is None:
+            root = find_project_root()
+            config_file = root / DEFAULT_CONFIG_FILENAME
+        self.config_file = Path(config_file).resolve()
         self.deprecated = {
             v.replace: k for k, v in self._config_map.items() if v.replace
         }
