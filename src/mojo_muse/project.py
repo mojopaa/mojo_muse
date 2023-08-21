@@ -145,6 +145,7 @@ class Project:
                 )
 
         self.root: Path = Path(root_path or "").absolute()
+        self.is_global = is_global
 
         self.project_cache = ProjectCache(
             root_path=self.root, global_config=self.global_config_path
@@ -155,7 +156,7 @@ class Project:
         else:
             self._interpreter = PythonInfo.from_path(python)
 
-        self.is_global = is_global
+        
         self.auth = MuseBasicAuth(self.ui, self.sources)
         self.init_global_project()
 
