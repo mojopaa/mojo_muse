@@ -11,6 +11,10 @@ class MuseUsageError(MuseException):
     pass
 
 
+class ProjectError(MuseUsageError):
+    pass
+
+
 class NoConfigError(MuseUsageError, KeyError):
     def __str__(self) -> str:
         return f"Not such config key: {self.args[0]!r}"

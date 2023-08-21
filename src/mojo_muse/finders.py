@@ -3,7 +3,6 @@ import functools
 import itertools
 import os
 import warnings
-from contextlib import contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Generator, Iterable, NamedTuple, Sequence, TypedDict
@@ -14,7 +13,6 @@ import packaging.tags
 from packaging.utils import BuildTag, canonicalize_name, parse_wheel_filename
 from packaging.version import parse as parse_version
 
-from .auth import MuseBasicAuth
 from .collector import collect_links_from_location
 from .evaluator import (
     Evaluator,
@@ -25,12 +23,9 @@ from .evaluator import (
     is_equality_specifier,
     validate_hashes,
 )
-from .exceptions import MuseUsageError
-from .models.info import PythonInfo
 from .models.link import Link
 from .preparer import unpack_link
 from .session import MuseSession, PyPISession
-from .termui import ui
 from .utils import LazySequence, RepositoryConfig
 
 
