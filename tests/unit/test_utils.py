@@ -5,6 +5,7 @@ from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 
 from mojo_muse.utils import (
+    DEFAULT_MOJOPROJECT_FILENAME,
     add_ssh_scheme_to_git_uri,
     build_url_from_netloc,
     cd,
@@ -35,7 +36,6 @@ from mojo_muse.utils import (
     splitext,
     url_to_path,
     url_without_fragments,
-    DEFAULT_MOJOPROJECT_FILENAME,
 )
 
 
@@ -56,7 +56,6 @@ def test_find_project_root():
         f.write("a")
     assert find_project_root(cwd=p.parent) == p.parent
     os.remove(p)
-
 
 
 def test_path_to_url():

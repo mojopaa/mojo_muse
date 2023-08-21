@@ -9,18 +9,22 @@ import re
 import shutil
 import sys
 import warnings
+from contextlib import contextmanager
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, cast
+from typing import TYPE_CHECKING, Any, Callable, Generator, Iterable, Mapping, cast
 
+import packaging
 import platformdirs
 import tomlkit
 from findpython import BaseProvider, Finder, PythonVersion
 from mups import parse_ring_filename
 from packaging.specifiers import SpecifierSet
+from packaging.tags import _32_BIT_INTERPRETER
 from tomlkit.items import Array
 
 from .auth import MuseBasicAuth, RepositoryConfigWithPassword
+from .evaluator import TargetPython
 from .exceptions import (
     BuildError,
     CandidateNotFound,
@@ -28,6 +32,8 @@ from .exceptions import (
     NoPythonVersion,
     deprecation_warning,
 )
+from .finders import PyPackageFinder
+from .in_process import get_python_abi_tag, get_uname
 from .models.backends import BuildBackend, get_backend_by_spec
 from .models.caches import HashCache, ProjectCache
 from .models.candidates import (
@@ -52,6 +58,7 @@ from .models.requirements import (
 )
 from .models.vcs import vcs_support
 from .models.venv import VirtualEnv, get_in_project_venv, get_venv_python
+from .session import MuseSession, PyPISession
 from .termui import UI, SilentSpinner, Spinner, logger, ui
 from .utils import (
     DEFAULT_MOJOPROJECT_FILENAME,
@@ -64,6 +71,7 @@ from .utils import (
     find_project_root,
     find_python_in_path,
     get_rev_from_url,
+    get_trusted_hosts,
     path_to_url,
     url_without_fragments,
 )
@@ -96,6 +104,7 @@ class Project:
     def __init__(
         self,
         root_path: str | Path | None = None,
+        python: str | None = None,
         ui: UI = ui,
         is_global: bool = False,
         global_config: str | Path | None = None,
@@ -136,6 +145,12 @@ class Project:
         self.project_cache = ProjectCache(
             root_path=self.root, global_config=self.global_config_path
         )
+
+        if python is None:
+            self._interpreter = self.python
+        else:
+            self._interpreter = PythonInfo.from_path(python)
+
         self.is_global = is_global
         self.auth = MuseBasicAuth(self.ui, self.sources)
         self.init_global_project()
@@ -346,7 +361,7 @@ class Project:
 
             if not self.root.joinpath("__pypackages__").exists():
                 note("python.use_venv is on, creating a virtualenv for this project...")
-                venv_path = self._create_virtualenv()
+                venv_path = self._create_virtualenv()  # TODO
                 self.python = PythonInfo.from_path(get_venv_python(venv_path))
                 return self.python
 
@@ -360,7 +375,7 @@ class Project:
                 return py_version
 
         raise NoPythonVersion(
-            f"No Python that satisfies {self.python_requires} is found on the system."
+            f"No Python that satisfies {self.requires_python} is found on the system."
         )
 
     @property
@@ -379,6 +394,16 @@ class Project:
         if not self._mojo:
             pass  # TODO: self.resolve_mojo_compiler()
         return self._mojo
+
+    @property
+    def interpreter(self) -> PythonInfo:
+        return self._interpreter
+
+    @cached_property
+    def target_python(self) -> TargetPython:
+        python_version = self.interpreter.version_tuple
+        python_abi_tag = get_python_abi_tag(str(self.interpreter.executable))
+        return TargetPython(python_version, [python_abi_tag])
 
     @property
     def _saved_python(self) -> str | None:
@@ -627,3 +652,104 @@ def prepare(candidate: Candidate, project: Project) -> PreparedCandidate:
     if candidate._prepared is None:
         candidate._prepared = PreparedCandidate(candidate=candidate, project=project)
     return candidate._prepared
+
+
+# original finders.py
+
+
+def _build_pypi_session(
+    project: Project, trusted_hosts: list[str], auth: MuseBasicAuth | None
+) -> PyPISession:
+    if auth is None:
+        auth = MuseBasicAuth(ui=ui, sources=project.sources)
+    ca_certs = project.config.get("pypi.ca_certs")
+    session = PyPISession(
+        cache_dir=project.project_cache.cache("http"),
+        trusted_hosts=trusted_hosts,
+        ca_certificates=Path(ca_certs) if ca_certs is not None else None,
+    )
+    certfn = project.config.get("pypi.client_cert")
+    if certfn:
+        keyfn = project.config.get("pypi.client_key")
+        session.cert = (Path(certfn), Path(keyfn) if keyfn else None)
+
+    session.auth = auth
+    return session
+
+
+@contextmanager
+def _patch_target_python(
+    project: Project, python: str | None = None
+) -> Generator[None, None, None]:
+    """Patch the packaging modules to respect the arch of target python."""
+    if python is None:
+        interpreter = project.python
+    else:
+        interpreter = PythonInfo.from_path(python)
+
+    old_32bit = _32_BIT_INTERPRETER
+    old_os_uname = getattr(os, "uname", None)
+
+    if old_os_uname is not None:
+
+        def uname() -> os.uname_result:
+            return get_uname(str(interpreter.executable))
+
+        os.uname = uname
+    _32_BIT_INTERPRETER = interpreter.is_32bit
+    try:
+        yield
+    finally:
+        _32_BIT_INTERPRETER = old_32bit
+        if old_os_uname is not None:
+            os.uname = old_os_uname
+
+
+@contextmanager
+def get_pypi_finder(
+    project: Project,
+    sources: list[RepositoryConfig] | None = None,
+    ignore_compatibility: bool = False,
+) -> Generator[PyPackageFinder, None, None]:
+    """Return the package finder of given index sources.
+
+    :param sources: a list of sources the finder should search in.
+    :param ignore_compatibility: whether to ignore the python version
+        and wheel tags.
+    """
+
+    if sources is None:
+        sources = project.sources
+    if not sources:
+        raise MuseUsageError(
+            "You must specify at least one index in pyproject.toml or config.\n"
+            "The 'pypi.ignore_stored_index' config value is "
+            f"{project.config['pypi.ignore_stored_index']}"
+        )
+
+    trusted_hosts = get_trusted_hosts(sources)
+
+    session = _build_pypi_session(trusted_hosts)
+    with _patch_target_python():
+        finder = PyPackageFinder(
+            session=session,
+            target_python=project.target_python,
+            ignore_compatibility=ignore_compatibility,
+            no_binary=os.getenv("PDM_NO_BINARY", "").split(","),
+            only_binary=os.getenv("PDM_ONLY_BINARY", "").split(","),
+            prefer_binary=os.getenv("PDM_PREFER_BINARY", "").split(","),
+            respect_source_order=project.pyproject.settings.get("resolution", {}).get(
+                "respect-source-order", False
+            ),
+            verbosity=project.ui.verbosity,
+        )
+        for source in sources:
+            assert source.url
+            if source.type == "find_links":
+                finder.add_find_links(source.url)
+            else:
+                finder.add_index_url(source.url)
+        try:
+            yield finder
+        finally:
+            session.close()

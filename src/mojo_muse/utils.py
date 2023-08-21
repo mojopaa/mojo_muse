@@ -217,7 +217,10 @@ def find_project_root(cwd: str = ".", max_depth: int = 10) -> str | None:
     path = original_path
     for _ in range(max_depth):
         # print(path)
-        if path.joinpath(DEFAULT_MOJOPROJECT_FILENAME).exists() or path.joinpath(DEFAULT_PYPROJECT_FILENAME).exists():
+        if (
+            path.joinpath(DEFAULT_MOJOPROJECT_FILENAME).exists()
+            or path.joinpath(DEFAULT_PYPROJECT_FILENAME).exists()
+        ):
             # return path.as_posix()
             return path
         if path.parent == path:

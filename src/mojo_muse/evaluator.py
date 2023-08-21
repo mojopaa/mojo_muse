@@ -21,6 +21,7 @@ from packaging.version import InvalidVersion, Version
 from .models.link import Link
 from .models.requirements import strip_extras
 from .models.specifiers import fix_legacy_specifier
+from .pep425tags import get_supported
 from .session import Session
 
 # from unearth.pep425tags import get_supported

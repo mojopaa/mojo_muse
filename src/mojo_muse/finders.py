@@ -26,14 +26,12 @@ from .evaluator import (
     validate_hashes,
 )
 from .exceptions import MuseUsageError
-from .in_process import get_uname
 from .models.info import PythonInfo
 from .models.link import Link
 from .preparer import unpack_link
-from .project import Project
 from .session import MuseSession, PyPISession
 from .termui import ui
-from .utils import LazySequence, RepositoryConfig, get_trusted_hosts
+from .utils import LazySequence, RepositoryConfig
 
 
 class Source(TypedDict):
@@ -414,101 +412,3 @@ class PyPackageFinder:
             verbosity=self.verbosity,
         )
         return file.joinpath(link.subdirectory) if link.subdirectory else file
-
-
-def _build_pypi_session(
-    project: Project, trusted_hosts: list[str], auth: MuseBasicAuth | None
-) -> MuseSession:
-    if auth is None:
-        auth = MuseBasicAuth(ui=ui, sources=project.sources)
-    ca_certs = project.config.get("pypi.ca_certs")
-    session = MuseSession(
-        cache_dir=project.project_cache.cache("http"),
-        trusted_hosts=trusted_hosts,
-        ca_certificates=Path(ca_certs) if ca_certs is not None else None,
-    )
-    certfn = project.config.get("pypi.client_cert")
-    if certfn:
-        keyfn = project.config.get("pypi.client_key")
-        session.cert = (Path(certfn), Path(keyfn) if keyfn else None)
-
-    session.auth = auth
-    return session
-
-
-@contextmanager
-def _patch_target_python(
-    project: Project, python: str | None = None
-) -> Generator[None, None, None]:
-    """Patch the packaging modules to respect the arch of target python."""
-    if python is None:
-        interpreter = project.python
-    else:
-        interpreter = PythonInfo.from_path(python)
-
-    old_32bit = packaging.tags._32_BIT_INTERPRETER
-    old_os_uname = getattr(os, "uname", None)
-
-    if old_os_uname is not None:
-
-        def uname() -> os.uname_result:
-            return get_uname(str(interpreter.executable))
-
-        os.uname = uname
-    packaging.tags._32_BIT_INTERPRETER = interpreter.is_32bit
-    try:
-        yield
-    finally:
-        packaging.tags._32_BIT_INTERPRETER = old_32bit
-        if old_os_uname is not None:
-            os.uname = old_os_uname
-
-
-@contextmanager
-def get_pypi_finder(
-    project: Project,
-    sources: list[RepositoryConfig] | None = None,
-    ignore_compatibility: bool = False,
-) -> Generator[PyPackageFinder, None, None]:
-    """Return the package finder of given index sources.
-
-    :param sources: a list of sources the finder should search in.
-    :param ignore_compatibility: whether to ignore the python version
-        and wheel tags.
-    """
-
-    if sources is None:
-        sources = project.sources
-    if not sources:
-        raise MuseUsageError(
-            "You must specify at least one index in pyproject.toml or config.\n"
-            "The 'pypi.ignore_stored_index' config value is "
-            f"{project.config['pypi.ignore_stored_index']}"
-        )
-
-    trusted_hosts = get_trusted_hosts(sources)
-
-    session = _build_pypi_session(trusted_hosts)
-    with _patch_target_python():
-        finder = PyPackageFinder(
-            session=session,
-            target_python=target_python,
-            ignore_compatibility=ignore_compatibility,
-            no_binary=os.getenv("PDM_NO_BINARY", "").split(","),
-            only_binary=os.getenv("PDM_ONLY_BINARY", "").split(","),
-            prefer_binary=os.getenv("PDM_PREFER_BINARY", "").split(","),
-            respect_source_order=project.pyproject.settings.get("resolution", {}).get(
-                "respect-source-order", False
-            ),
-            verbosity=self.project.core.ui.verbosity,
-        )
-        for source in sources:
-            assert source.url
-            if source.type == "find_links":
-                finder.add_find_links(source.url)
-            else:
-                finder.add_index_url(source.url)
-        try:
-            yield finder
-        finally:
-            session.close()
