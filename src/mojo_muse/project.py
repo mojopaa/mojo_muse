@@ -1,3 +1,5 @@
+"""This module contains Project class and those depend on it. Use Environment only when get_path() is needed."""
+
 from __future__ import annotations
 
 import base64
