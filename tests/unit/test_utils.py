@@ -36,6 +36,7 @@ from mojo_muse.utils import (
     splitext,
     url_to_path,
     url_without_fragments,
+    format_size,
 )
 
 
@@ -221,3 +222,6 @@ def test_merge_dictionary():
     d = {"a": [1]}
     merge_dictionary(d, {"a": [2]})
     assert d == {"a": [1, 2]}
+
+def test_format_size():  # TODO: coverage
+    assert format_size("1024") == "1.0 kB"

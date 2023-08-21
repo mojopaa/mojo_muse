@@ -636,3 +636,17 @@ def merge_dictionary(
         else:
             target[key] = value
     return target
+
+def format_size(size: str) -> str:
+    try:
+        int_size = int(size)
+    except (TypeError, ValueError):
+        return "size unknown"
+    if int_size > 1000 * 1000:
+        return f"{int_size / 1000.0 / 1000:.1f} MB"
+    elif int_size > 10 * 1000:
+        return f"{int(int_size / 1000)} kB"
+    elif int_size > 1000:
+        return f"{int_size / 1000.0:.1f} kB"
+    else:
+        return f"{int(int_size)} bytes"
