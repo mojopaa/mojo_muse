@@ -7,7 +7,7 @@ from .formats import array_of_inline_tables, make_array, make_inline_table
 from .models.backends import _BACKENDS, DEFAULT_BACKEND, get_backend
 from .models.specifiers import get_specifier
 from .project import Project
-from .templates import PyProjectTemplate
+from .templates import PyProjectTemplate, MojoProjectTemplate
 from .termui import ask
 
 
@@ -98,7 +98,7 @@ def _init_builtin_mojoproject(
     project: Project, template: str | None = None, overwrite: bool = False
 ):
     metadata = get_metadata_from_input(project=project)
-    with PyProjectTemplate(template) as template:
+    with MojoProjectTemplate(template) as template:
         template.generate(project.root, metadata, overwrite)
     project.mojoproject.reload()
 
