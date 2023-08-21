@@ -216,7 +216,8 @@ def find_project_root(cwd: str = ".", max_depth: int = 10) -> str | None:
     original_path = Path(cwd).absolute()
     path = original_path
     for _ in range(max_depth):
-        if path.joinpath("pyproject.toml").exists():
+        # print(path)
+        if path.joinpath(DEFAULT_MOJOPROJECT_FILENAME).exists() or path.joinpath(DEFAULT_PYPROJECT_FILENAME).exists():
             # return path.as_posix()
             return path
         if path.parent == path:

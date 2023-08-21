@@ -35,6 +35,7 @@ from mojo_muse.utils import (
     splitext,
     url_to_path,
     url_without_fragments,
+    DEFAULT_MOJOPROJECT_FILENAME,
 )
 
 
@@ -49,6 +50,13 @@ def test_find_project_root():
     assert (
         find_project_root() == Path(__file__).parent.parent.parent
     )  # Any better idea?
+
+    p = Path(__file__).with_name(DEFAULT_MOJOPROJECT_FILENAME)
+    with open(p, "w", encoding="utf-8") as f:
+        f.write("a")
+    assert find_project_root(cwd=p.parent) == p.parent
+    os.remove(p)
+
 
 
 def test_path_to_url():
