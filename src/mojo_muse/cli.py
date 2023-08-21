@@ -51,7 +51,7 @@ def get_metadata_from_input(
     python = project.python
     python_version = f"{python.major}.{python.minor}"
     requires_python = ask("Python requires", default=f">={python_version}")
-
+    requires_mojo = ">=0.1.0"  # TODO: project.mojo, mojo_version
     if not use_pyproject:
         # TODO mojo version
         mojo = project.mojo
@@ -128,6 +128,7 @@ def handle_init(project: Project, is_interactive: bool = True):
             "mojoproject.toml already exists, update it now.", style="primary"
         )
     elif project.pyproject.exists():
+        # TODO: it writes requires_mojo to pyproject.toml
         question = (
             "pyproject.toml already exists, do you want to use pyproject.toml instead?"
         )
