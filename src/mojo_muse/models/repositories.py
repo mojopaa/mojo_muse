@@ -21,6 +21,7 @@ from ..utils import (
     DEFAULT_MOJOPROJECT_FILENAME,
     CandidateInfo,
     FileHash,
+    LazySequence,
     RepositoryConfig,
     SearchResult,
     cd,
@@ -202,21 +203,21 @@ class BaseRepository(ABC):
         requires_mojo = (
             requirement.requires_mojo & self.requires_mojo
         )  # TODO: implement this?
-        cans = self._find_candidates(requirement)
-        applicable_cans = [
+        cans = LazySequence(self._find_candidates(requirement))
+        applicable_cans = LazySequence(
             c
             for c in cans
             if requirement.specifier.contains(c.version, allow_prereleases)  # type: ignore[arg-type, union-attr]
-        ]
+        )
 
-        applicable_cans_mojo_compatible = [
+        applicable_cans_mojo_compatible = LazySequence(
             c
             for c in applicable_cans
             if ignore_requires_mojo
             or requires_mojo.is_subset(
                 c.requires_mojo
             )  # TODO: implement this? github issue: https://github.com/pypa/packaging/issues/707
-        ]
+        )
         # Evaluate data-requires-mojo attr and discard incompatible candidates
         # to reduce the number of candidates to resolve.
         if applicable_cans_mojo_compatible:
@@ -227,15 +228,15 @@ class BaseRepository(ABC):
 
         if not applicable_cans and allow_prereleases is None:
             # No non-pre-releases is found, force pre-releases now
-            applicable_cans = [
+            applicable_cans = LazySequence(
                 c for c in cans if requirement.specifier.contains(c.version, True)  # type: ignore[arg-type, union-attr]
-            ]
-            applicable_cans_mojo_compatible = [
+            )
+            applicable_cans_mojo_compatible = LazySequence(
                 c
                 for c in applicable_cans
                 # TODO: implement this? github issue: https://github.com/pypa/packaging/issues/707
                 if ignore_requires_mojo or requires_mojo.is_subset(c.requires_mojo)
-            ]
+            )
             if applicable_cans_mojo_compatible:
                 applicable_cans = applicable_cans_mojo_compatible
 
@@ -451,12 +452,12 @@ class MojoPIRepository(BaseRepository):
     def _find_candidates(self, requirement: BaseMuseRequirement) -> Iterable[Candidate]:
         sources = self.get_filtered_sources(requirement)
         with self.environment.get_finder(sources, self.ignore_compatibility) as finder:
-            cans = [
+            cans = LazySequence(
                 Candidate.from_installation_candidate(c, requirement)
                 for c in finder.find_all_packages(
                     requirement.project_name, allow_yanked=requirement.is_pinned
                 )
-            ]
+            )
         if not cans:
             raise CandidateNotFound(
                 f"Unable to find candidates for {requirement.project_name}. There may "
