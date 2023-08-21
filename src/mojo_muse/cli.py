@@ -7,7 +7,7 @@ from .formats import array_of_inline_tables, make_array, make_inline_table
 from .models.backends import _BACKENDS, DEFAULT_BACKEND, get_backend
 from .models.specifiers import get_specifier
 from .project import Project
-from .templates import PyProjectTemplate, MojoProjectTemplate
+from .templates import MojoProjectTemplate, PyProjectTemplate
 from .termui import ask
 
 

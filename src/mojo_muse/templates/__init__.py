@@ -190,6 +190,7 @@ class PyProjectTemplate:
 
         self.mirror(src, self._path, skip=[src / ".git", src / ".svn", src / ".hg"])
 
+
 class MojoProjectTemplate:
     _path: Path
 

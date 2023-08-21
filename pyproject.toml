@@ -18,6 +18,7 @@ dependencies = [
     "semver>=3.0.1",
     "setuptools>=68.1.2",
     "findpython>=0.3.1",
+    "mups @ git+https://github.com/drunkwcodes/mojopi.git",
 ]
 requires-python = ">=3.10"
 readme = "README.md"

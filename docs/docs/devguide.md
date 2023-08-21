@@ -14,3 +14,7 @@ Do not mess it.
 The graph detail is like:
 
 link < exceptions, utils, termui < session, auth < models/specifiers, backends < markers, toml_file, config < project_file, requirements < candidates, repositories < project < finder, resolever
+
+## About ABC
+
+Avoid writing language specific things in abc, and the platform groundwork cpython doesn't support directly.
