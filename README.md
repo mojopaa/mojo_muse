@@ -17,6 +17,9 @@ This command will ask you some questions and make a project skeleton for you.
 
 - `pip install pdm`
 - `pdm install -d`
+- Start venv
+  - Windows: .venv\Script\activate
+  - Linux: .venv/bin/activate
 - `cd tests`
 - `mkdir t`
 - `cd t`
