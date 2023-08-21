@@ -1009,7 +1009,7 @@ class PreparedPythonCandidate(BasePreparedCandidate):
                         f"The URL requirement {self.req.as_line()} is a wheel but incompatible"
                     )
                 self.link = self.ring = None  # reset the incompatible wheel
-                self.link = _find_best_match_link(
+                self.link = _find_best_match_link_pypi(
                     finder,
                     self.req.as_pinned_version(self.candidate.version),
                     self.candidate.hashes,

@@ -13,7 +13,7 @@ Do not mess it.
 
 The graph detail is like:
 
-link < exceptions, utils, termui < session, auth, models/link < finders < models/specifiers, backends < markers, toml_file, config < project_file, requirements < setup, candidates, repositories < project < resolever
+link < exceptions, utils, termui < session, auth, models/link < finders < models/specifiers, backends < markers, toml_file, config < project_file, requirements < setup, builders, models/candidates, repositories < project < resolever
 
 ## About ABC
 
