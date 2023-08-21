@@ -16,16 +16,13 @@ try:
     import tomllib
 except ImportError:
     import tomli as tomllib
-from pdm.environments import PythonEnvironment
-from pdm.exceptions import BuildError
-from pdm.models.in_process import get_sys_config_paths
-from pdm.models.requirements import Requirement, parse_requirement
-from pdm.models.working_set import WorkingSet
-from pdm.termui import logger
-from pdm.utils import create_tracked_tempdir
-
-if TYPE_CHECKING:
-    from pdm.environments import BaseEnvironment
+# from pdm.environments import PythonEnvironment
+from ..exceptions import BuildError
+from ..in_process import get_sys_config_paths
+from ..models.requirements import Requirement, parse_requirement
+from ..models.working_set import WorkingSet
+from ..termui import logger
+from ..utils import create_tracked_tempdir
 
 
 class LoggerWrapper(threading.Thread):

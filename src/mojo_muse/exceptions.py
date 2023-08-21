@@ -7,6 +7,10 @@ class MuseException(Exception):
     pass
 
 
+class InstallationError(MuseException):
+    pass
+
+
 class MuseUsageError(MuseException):
     pass
 

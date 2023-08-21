@@ -9,14 +9,17 @@ from ..models.candidates import Candidate
 from ..models.repositories import BaseRepository
 from ..models.requirements import BaseMuseRequirement, strip_extras
 from ..models.specifiers import PySpecSet
-from .providers import BaseProvider
+from ..project import Project
+from .providers import BaseProvider, get_provider
 from .python import PythonRequirement
+from .reporters import get_reporter
 
 
 def resolve_python(
     resolver: Resolver,
     requirements: list[BaseMuseRequirement],
     requires_python: PySpecSet,
+    project: Project,
     max_rounds: int = 10000,
     keep_self: bool = False,
 ) -> tuple[
@@ -30,18 +33,13 @@ def resolve_python(
     """
     requirements.append(PythonRequirement.from_pyspec_set(requires_python))
     provider = cast(BaseProvider, resolver.provider)
-    repository = cast(BaseRepository, provider.repository)
 
     result = resolver.resolve(requirements, max_rounds)
 
     mapping = cast(Dict[str, Candidate], result.mapping)
     mapping.pop("python", None)
 
-    local_name = (
-        normalize_name(repository.environment.project.name)
-        if repository.environment.project.name
-        else None
-    )
+    local_name = normalize_name(project.name) if project.name else None
     for key, candidate in list(result.mapping.items()):
         if key is None:
             continue

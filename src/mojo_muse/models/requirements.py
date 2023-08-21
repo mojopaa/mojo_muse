@@ -1,10 +1,12 @@
 import functools
+import json
 import os
 import posixpath
 import re
 import secrets
 import warnings
 from abc import ABC, abstractmethod
+from importlib.metadata import Distribution
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import parse_qsl, unquote, urlparse, urlunparse
@@ -25,6 +27,7 @@ from ..utils import (
     url_to_path,
     url_without_fragments,
 )
+from .backends import BuildBackend
 from .link import Link
 from .markers import split_marker_extras
 from .specifiers import get_specifier
@@ -323,6 +326,17 @@ class BaseFileMuseRequirement(BaseMuseRequirement):
             url += f"#subdirectory={self.subdirectory}"
         return Link(url)
 
+    def relocate(self, backend: BuildBackend) -> None:
+        """Change the project root to the given path"""  # TODO: reword? project root?
+        if self.path is None or self.path.is_absolute():
+            return
+        # self.path is relative
+        self.path = path_without_fragments(os.path.relpath(self.path, backend.root))
+        path = self.path.as_posix()
+        if path == ".":
+            path = ""
+        self.url = backend.relative_path_to_url(path)
+
     # @classmethod
     # def create(cls: type[T], **kwargs: Any) -> T:
     #     if kwargs.get("path"):
@@ -431,6 +445,32 @@ class MuseRequirement(BaseMuseRequirement):
         if "path" in req_dict or "url" in req_dict:
             return FileMuseRequirement(name=name, **req_dict)
         return NamedMuseRequirement(name=name, **req_dict)
+
+    @classmethod
+    def from_dist(
+        cls, dist: Distribution
+    ) -> Requirement:  # TODO: change name if mojo uses distribution
+        direct_url_json = dist.read_text("direct_url.json")
+        if direct_url_json is not None:
+            direct_url = json.loads(direct_url_json)
+            data = {
+                "name": dist.metadata["Name"],
+                "url": direct_url.get("url"),
+                "editable": direct_url.get("dir_info", {}).get("editable"),
+                "subdirectory": direct_url.get("subdirectory"),
+            }
+            if "vcs_info" in direct_url:
+                vcs_info = direct_url["vcs_info"]
+                data.update(
+                    url=f"{vcs_info['vcs']}+{direct_url['url']}",
+                    ref=vcs_info.get("requested_revision"),
+                    revision=vcs_info.get("commit_id"),
+                )
+                return VcsMuseRequirement(**data)  # TODO: check if valid
+            return FileMuseRequirement(**data)  # TODO: check if valid
+        return NamedMuseRequirement(
+            name=dist.metadata["Name"], version=f"=={dist.version}"
+        )  # TODO: check if valid
 
     def as_line(self) -> str:
         extras = f"[{','.join(sorted(self.extras))}]" if self.extras else ""

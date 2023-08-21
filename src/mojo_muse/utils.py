@@ -5,6 +5,7 @@ import contextlib
 import functools
 import importlib.resources
 import itertools
+import json
 import os
 import re
 import shutil
@@ -12,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass, field
+from importlib.metadata import Distribution
 from pathlib import Path
 from re import Match
 from typing import (
@@ -651,3 +653,37 @@ def format_size(size: str) -> str:
         return f"{int_size / 1000.0:.1f} kB"
     else:
         return f"{int(int_size)} bytes"
+
+
+# TODO: make dist easier and test
+def is_egg_link(dist: Distribution) -> bool:
+    """Check if the distribution is an egg-link install"""
+    return getattr(dist, "link_file", None) is not None
+
+
+def is_editable(dist: Distribution) -> bool:
+    """Check if the distribution is installed in editable mode"""
+    if is_egg_link(dist):
+        return True
+    direct_url = dist.read_text("direct_url.json")
+    if not direct_url:
+        return False
+    direct_url_data = json.loads(direct_url)
+    return direct_url_data.get("dir_info", {}).get("editable", False)
+
+
+@functools.lru_cache()
+def fs_supports_symlink() -> bool:
+    if not hasattr(os, "symlink"):
+        return False
+    if sys.platform == "win32":
+        with tempfile.NamedTemporaryFile(prefix="TmP") as tmp_file:
+            temp_dir = os.path.dirname(tmp_file.name)
+            dest = os.path.join(temp_dir, "{}-{}".format(tmp_file.name, "b"))
+            try:
+                os.symlink(tmp_file.name, dest)
+                return True
+            except (OSError, NotImplementedError):
+                return False
+    else:
+        return True

@@ -20,6 +20,8 @@ dependencies = [
     "findpython>=0.3.1",
     "mups @ git+https://github.com/drunkwcodes/mups.git",
     "tomli>=2.0.1",
+    "pyproject-hooks>=1.0.0",
+    "installer>=0.7.0",
 ]
 requires-python = ">=3.10"
 readme = "README.md"
