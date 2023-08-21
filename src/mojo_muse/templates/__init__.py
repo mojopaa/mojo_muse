@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+try:
+    from importlib.resources.abc import Traversable
+except ImportError:  # 3.10
+    from importlib.abc import Traversable
+
 import importlib.resources as importlib_resources
 import os
 import re
 import shutil
 import subprocess
 import tempfile
-from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, TypeVar
 

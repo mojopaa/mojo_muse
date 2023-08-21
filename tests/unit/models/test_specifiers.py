@@ -1,4 +1,5 @@
 import pytest
+
 from mojo_muse.models.specifiers import (
     ImpossiblePySpecSet,
     InvalidSpecifier,

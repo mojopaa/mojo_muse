@@ -1,10 +1,11 @@
+from packaging.requirements import Requirement
+
 from mojo_muse.models.requirements import (
     FileMuseRequirement,
     MuseRequirement,
     VcsMuseRequirement,
     parse_requirement,
 )
-from packaging.requirements import Requirement
 
 
 def test_MuseRequirement():

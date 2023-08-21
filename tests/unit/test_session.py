@@ -2,6 +2,7 @@ import logging
 from unittest import mock
 
 import pytest
+
 from mojo_muse.auth import MultiDomainBasicAuth
 from mojo_muse.models.link import Link
 

@@ -11,7 +11,7 @@ import sys
 import warnings
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, Self, cast
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, cast
 
 import platformdirs
 import tomlkit
@@ -37,7 +37,7 @@ from .models.candidates import (
     make_candidate,
 )
 from .models.config import DEFAULT_CONFIG_FILENAME, Config
-from .models.info import PythonInfo, MojoInfo
+from .models.info import MojoInfo, PythonInfo
 from .models.link import Link
 from .models.lockfile import Lockfile
 from .models.project_file import MojoProjectFile, PyProjectFile
@@ -235,7 +235,7 @@ class Project:
                 self.project = project
 
             @classmethod
-            def create(cls) -> Self | None:
+            def create(cls):  # -> Self | None
                 return None
 
             def find_pythons(self) -> Iterable[PythonVersion]:
@@ -373,13 +373,13 @@ class Project:
                     "Please upgrade your Python to 3.6 or later.",
                 )
         return self._python
-    
+
     @property
     def mojo(self) -> MojoInfo:
         if not self._mojo:
             pass  # TODO: self.resolve_mojo_compiler()
         return self._mojo
-    
+
     @property
     def _saved_python(self) -> str | None:
         if os.getenv("PDM_PYTHON"):

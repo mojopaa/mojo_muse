@@ -113,11 +113,11 @@ class MojoInfo(BaseInfo):
     def from_path(cls, path: str | Path) -> MojoInfo:
         mojo_ver = MojoVersion(Path(path))
         return cls(mojo_ver)
-    
+
     @cached_property
     def valid(self) -> bool:
         return self._mojo_ver.executable.exists() and self._mojo_ver.is_valid()
-    
+
     def __hash__(self) -> int:
         return hash(self._mojo_ver)
 
@@ -133,7 +133,7 @@ class MojoInfo(BaseInfo):
     @property
     def executable(self) -> Path:
         return self._mojo_ver.interpreter
-    
+
     @cached_property
     def version(self) -> Version:
         return self._mojo_ver.version
@@ -153,7 +153,7 @@ class MojoInfo(BaseInfo):
     @property
     def version_tuple(self) -> tuple[int, ...]:
         return (self.major, self.minor, self.micro)
-    
+
     @property
     def is_32bit(self) -> bool:
         return "32bit" in self._mojo_ver.architecture

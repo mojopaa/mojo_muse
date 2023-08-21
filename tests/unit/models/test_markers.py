@@ -1,4 +1,5 @@
 import pytest
+
 from mojo_muse.models.markers import PyMarker, split_marker_extras
 
 

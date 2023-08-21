@@ -30,8 +30,8 @@ from ..utils import (
     url_without_fragments,
 )
 from .caches import ProjectCache
-from .candidates import Candidate, make_candidate, CandidateInfoCache
-from .config import Config, DEFAULT_CONFIG_FILENAME
+from .candidates import Candidate, CandidateInfoCache, make_candidate
+from .config import DEFAULT_CONFIG_FILENAME, Config
 from .link import Link
 from .project_file import MojoProjectFile
 from .requirements import (

@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+
 from mojo_muse.models.link import Link
 from mojo_muse.utils import WINDOWS
 

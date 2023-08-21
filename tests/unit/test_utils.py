@@ -1,6 +1,9 @@
 import os
 from pathlib import Path
 
+from packaging.specifiers import SpecifierSet
+from packaging.version import Version
+
 from mojo_muse.utils import (
     add_ssh_scheme_to_git_uri,
     build_url_from_netloc,
@@ -33,8 +36,6 @@ from mojo_muse.utils import (
     url_to_path,
     url_without_fragments,
 )
-from packaging.specifiers import SpecifierSet
-from packaging.version import Version
 
 
 def test_cd():

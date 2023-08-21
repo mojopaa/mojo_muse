@@ -1,4 +1,5 @@
 import pytest
+
 from mojo_muse import (
     BuildError,
     CandidateInfoNotFound,

@@ -27,8 +27,8 @@ from .evaluator import (
 )
 from .exceptions import MuseUsageError
 from .in_process import get_uname
-from .models.link import Link
 from .models.info import PythonInfo
+from .models.link import Link
 from .preparer import unpack_link
 from .project import Project
 from .session import MuseSession, PyPISession
@@ -497,9 +497,9 @@ def get_pypi_finder(
             no_binary=os.getenv("PDM_NO_BINARY", "").split(","),
             only_binary=os.getenv("PDM_ONLY_BINARY", "").split(","),
             prefer_binary=os.getenv("PDM_PREFER_BINARY", "").split(","),
-            respect_source_order=project.pyproject.settings.get(
-                "resolution", {}
-            ).get("respect-source-order", False),
+            respect_source_order=project.pyproject.settings.get("resolution", {}).get(
+                "respect-source-order", False
+            ),
             verbosity=self.project.core.ui.verbosity,
         )
         for source in sources:

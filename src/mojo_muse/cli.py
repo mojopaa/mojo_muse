@@ -7,8 +7,8 @@ from .formats import array_of_inline_tables, make_array, make_inline_table
 from .models.backends import _BACKENDS, DEFAULT_BACKEND, get_backend
 from .models.specifiers import get_specifier
 from .project import Project
-from .termui import ask
 from .templates import PyProjectTemplate
+from .termui import ask
 
 
 @click.group()
@@ -17,7 +17,10 @@ def main():  # subcommand uses main as decorator. main.command().
 
 
 def get_metadata_from_input(
-    project: Project, backend: str | None = None, is_interactive: bool = True, use_pyproject: bool = False
+    project: Project,
+    backend: str | None = None,
+    is_interactive: bool = True,
+    use_pyproject: bool = False,
 ):
     name = ask("Project name", default=project.root.name)
     version = ask("Project version", default="0.1.0")
@@ -82,13 +85,18 @@ def get_metadata_from_input(
     return data
 
 
-def _init_builtin_pyproject(project: Project, template: str | None = None, overwrite: bool = False):  # TODO template type
+def _init_builtin_pyproject(
+    project: Project, template: str | None = None, overwrite: bool = False
+):  # TODO template type
     metadata = get_metadata_from_input(project=project, use_pyproject=True)
     with PyProjectTemplate(template) as template:
         template.generate(project.root, metadata, overwrite)
     project.pyproject.reload()
 
-def _init_builtin_mojoproject(project: Project, template: str | None = None, overwrite: bool = False):
+
+def _init_builtin_mojoproject(
+    project: Project, template: str | None = None, overwrite: bool = False
+):
     metadata = get_metadata_from_input(project=project)
     with PyProjectTemplate(template) as template:
         template.generate(project.root, metadata, overwrite)
@@ -110,6 +118,7 @@ def do_init(project: Project, use_pyproject: bool = False):
 
 
 def handle_init(project: Project, is_interactive: bool = True):
+    use_pyproject: bool = False
     if project.mojoproject.exists():
         project.ui.echo(
             "mojoproject.toml already exists, update it now.", style="primary"
@@ -128,7 +137,7 @@ def handle_init(project: Project, is_interactive: bool = True):
 
 @main.command()
 def init():
-    project = Project()
+    project = Project(root_path=".")
     handle_init(project)
 
 
