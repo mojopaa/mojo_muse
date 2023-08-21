@@ -156,7 +156,6 @@ class Project:
         else:
             self._interpreter = PythonInfo.from_path(python)
 
-        
         self.auth = MuseBasicAuth(self.ui, self.sources)
         self.init_global_project()
 

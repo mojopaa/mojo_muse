@@ -637,6 +637,7 @@ def merge_dictionary(
             target[key] = value
     return target
 
+
 def format_size(size: str) -> str:
     try:
         int_size = int(size)

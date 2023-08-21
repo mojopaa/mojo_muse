@@ -1,5 +1,6 @@
 from mojo_muse.project import Project
 
+
 class TestProject:
     project = Project(root_path=".")
 

@@ -117,7 +117,9 @@ class _Prefix:
         self.bin_dirs: list[str] = []
         self.lib_dirs: list[str] = []
         for path in (overlay, shared):
-            paths = get_sys_config_paths(executable, vars={"base": path, "platbase": path}, kind="prefix")
+            paths = get_sys_config_paths(
+                executable, vars={"base": path, "platbase": path}, kind="prefix"
+            )
             self.bin_dirs.append(paths["scripts"])
             self.lib_dirs.extend([paths["platlib"], paths["purelib"]])
         self.site_dir = os.path.join(overlay, "site")
@@ -125,7 +127,9 @@ class _Prefix:
             # Clear existing site dir as .pyc may be cached.
             shutil.rmtree(self.site_dir)
         os.makedirs(self.site_dir)
-        with open(os.path.join(self.site_dir, "sitecustomize.py"), "w", encoding="utf-8") as fp:
+        with open(
+            os.path.join(self.site_dir, "sitecustomize.py"), "w", encoding="utf-8"
+        ) as fp:
             fp.write(
                 textwrap.dedent(
                     f"""
@@ -177,7 +181,9 @@ class EnvBuilder:
     @classmethod
     def get_overlay_env(cls, key: str) -> str:
         if key not in cls._overlay_envs:
-            cls._overlay_envs[key] = create_tracked_tempdir("-overlay", "pdm-build-env-")
+            cls._overlay_envs[key] = create_tracked_tempdir(
+                "-overlay", "pdm-build-env-"
+            )
         return cls._overlay_envs[key]
 
     def __init__(self, src_dir: str | Path, environment: BaseEnvironment) -> None:
@@ -306,7 +312,9 @@ class EnvBuilder:
             if key not in self._shared_envs:
                 self._shared_envs[key] = path
 
-    def prepare_metadata(self, out_dir: str, config_settings: Mapping[str, Any] | None = None) -> str:
+    def prepare_metadata(
+        self, out_dir: str, config_settings: Mapping[str, Any] | None = None
+    ) -> str:
         """Prepare metadata and store in the out_dir.
         Some backends doesn't provide that API, in that case the metadata will be
         retrieved from the built result.

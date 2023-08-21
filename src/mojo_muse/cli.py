@@ -86,20 +86,24 @@ def get_metadata_from_input(
 
 
 def _init_builtin_pyproject(
-    project: Project, template: str | None = None, overwrite: bool = False
+    project: Project, template_path: str | None = None, overwrite: bool = False
 ):  # TODO template type
     metadata = get_metadata_from_input(project=project, use_pyproject=True)
-    with PyProjectTemplate(template) as template:
-        template.generate(project.root, metadata, overwrite)
+    with PyProjectTemplate(template_path) as template:
+        template.generate(
+            target_path=project.root, metadata=metadata, overwrite=overwrite
+        )
     project.pyproject.reload()
 
 
 def _init_builtin_mojoproject(
-    project: Project, template: str | None = None, overwrite: bool = False
+    project: Project, template_path: str | None = None, overwrite: bool = False
 ):
     metadata = get_metadata_from_input(project=project)
-    with MojoProjectTemplate(template) as template:
-        template.generate(project.root, metadata, overwrite)
+    with MojoProjectTemplate(template_path) as template:
+        template.generate(
+            target_path=project.root, metadata=metadata, overwrite=overwrite
+        )
     project.mojoproject.reload()
 
 
