@@ -1,7 +1,5 @@
 """Base repository definition. Use Repository, please import from project instead."""
 
-import collections
-import dataclasses
 import hashlib
 import posixpath
 import sys
@@ -10,7 +8,6 @@ from functools import cached_property, wraps
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, TypeVar, cast
 
-import platformdirs
 from mups import normalize_name, parse_ring_filename
 from packaging.specifiers import SpecifierSet
 
@@ -32,7 +29,6 @@ from ..utils import (
 )
 from .caches import ProjectCache
 from .candidates import Candidate, CandidateInfoCache, make_candidate
-from .config import DEFAULT_CONFIG_FILENAME, Config
 from .link import Link
 from .project_file import MojoProjectFile
 from .requirements import (

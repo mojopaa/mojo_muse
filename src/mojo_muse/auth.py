@@ -17,7 +17,7 @@ from requests.models import PreparedRequest
 from requests.utils import get_netrc_auth
 
 from .exceptions import MuseException
-from .termui import UI, Verbosity
+from .termui import UI, Verbosity, ui
 from .utils import RepositoryConfig, split_auth_from_netloc, split_auth_from_url
 
 KEYRING_DISABLED = False
@@ -130,7 +130,9 @@ def get_keyring_provider() -> BaseKeyringProvider | None:
     return None
 
 
-def get_keyring_auth(url: str | None, username: str | None) -> AuthInfo | None:
+def get_keyring_auth(
+    url: str | None = None, username: str | None = None
+) -> AuthInfo | None:
     """Return the tuple auth for a given url from keyring."""
     if not url:
         return None
@@ -374,7 +376,7 @@ class MuseBasicAuth(MultiDomainBasicAuth):
         - It shows an error message when credentials are not provided or correct.
     """
 
-    def __init__(self, ui: UI, sources: list[RepositoryConfig]) -> None:
+    def __init__(self, sources: list[RepositoryConfig], ui: UI = ui) -> None:
         super().__init__(prompting=True)
         self.sources = sources
         self.ui = ui

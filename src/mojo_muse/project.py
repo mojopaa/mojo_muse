@@ -199,7 +199,7 @@ class Project:
         return Config(self.root / DEFAULT_CONFIG_FILENAME)
 
     @property
-    def sources(self) -> list[RepositoryConfig]:
+    def sources(self) -> list[RepositoryConfig]:  # TODO: sources_python, sources_mojo?
         result: dict[str, RepositoryConfig] = {}
         for source in self.mojoproject.settings.get("source", []):
             result[source["name"]] = RepositoryConfig(**source, config_prefix="mojopi")
