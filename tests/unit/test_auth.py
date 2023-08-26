@@ -23,8 +23,8 @@ class TestKeyring:
 
 
 class TestKeyringCliProvider:
-    keyring = shutil.which("keyring")
-    k = KeyringCliProvider(keyring)
+    kr = shutil.which("keyring")
+    k = KeyringCliProvider(kr)
 
     def test_init(self):
         assert hasattr(self.k, "get_auth_info")
