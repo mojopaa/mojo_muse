@@ -60,20 +60,13 @@ def test_find_project_root():
 
 
 def test_path_to_url():
-    # path = r"C:\Users\drunk\projects\mojo_muse\src\mojo_muse\utils.py"
-    # assert (
-        # path_to_url(path)
-    #     == "file:///C:/Users/drunk/projects/mojo_muse/src/mojo_muse/utils.py"
-    # )
-    pass  # TODO: failed on ubuntu workflow
+    path = r"C:\Users\drunk\projects\mojo_muse\src\mojo_muse\utils.py"
+    assert "file://" in path_to_url(path)
 
 
 def test_url_to_path():
-    # url = "file:///C:/Users/drunk/projects/mojo_muse/src/mojo_muse/utils.py"
-    # assert (
-    #     url_to_path(url) == r"C:\Users\drunk\projects\mojo_muse\src\mojo_muse\utils.py"
-    # )
-    pass  # TODO: failed on ubuntu workflow
+    url = "file:///C:/Users/drunk/projects/mojo_muse/src/mojo_muse/utils.py"
+    assert "file://" not in url_to_path(url)
 
 
 def test_add_ssh_scheme_to_git_uri():
