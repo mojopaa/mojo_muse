@@ -473,3 +473,6 @@ class ProjectCache:
 
     def make_ring_cache(self) -> RingCache:  # TODO
         return get_ring_cache(self.cache("rings"))  # TODO
+
+    def make_wheel_cache(self) -> WheelCache:  # TODO
+        return get_wheel_cache(self.cache("wheels"))  # TODO

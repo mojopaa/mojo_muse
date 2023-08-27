@@ -10,6 +10,7 @@ from tempfile import TemporaryDirectory
 from typing import Any, cast
 
 from mups import parse_ring_filename
+from packaging.utils import parse_wheel_filename
 
 from ..exceptions import BuildError, CandidateNotFound
 from ..finders import PyPackageFinder
@@ -24,12 +25,14 @@ from ..models.requirements import (
 )
 from ..models.setup import Setup
 from ..models.vcs import vcs_support
-from ..project import Project
+from ..project import BaseEnvironment, MojoEnvironment, Project, PythonEnvironment
 from ..termui import UI, logger
 from ..utils import (
+    DEFAULT_MOJOPROJECT_FILENAME,
     FileHash,
     convert_hashes,
     create_tracked_tempdir,
+    get_rev_from_url,
     path_to_url,
     url_without_fragments,
 )
@@ -82,21 +85,60 @@ def _find_best_match_link_pypi(
     return found
 
 
+def _find_best_match_link(
+    finder: PyPackageFinder,  # TODO: mojo
+    req: BaseMuseRequirement,
+    files: list[FileHash],
+    ignore_compatibility: bool = False,
+) -> Link | None:
+    """Get the best matching link for a requirement"""
+
+    # This function is called when a lock file candidate is given or incompatible wheel
+    # In this case, the requirement must be pinned, so no need to pass allow_prereleases
+    # If links are not empty, find the best match from the links, otherwise find from
+    # the package sources.
+
+    links = [Link(f["url"]) for f in files if "url" in f]
+    hashes = convert_hashes(files)
+
+    def attempt_to_find() -> Link | None:
+        if not links:
+            best = finder.find_best_match(req.as_line(), hashes=hashes).best
+        else:
+            # this branch won't be executed twice if ignore_compatibility is True
+            evaluator = finder.build_evaluator(req.name)
+            packages = finder._evaluate_links(links, evaluator)
+            best = max(packages, key=finder._sort_key, default=None)
+        return best.link if best is not None else None
+
+    assert finder.ignore_compatibility is False
+    found = attempt_to_find()
+    if ignore_compatibility and (found is None or not found.is_wheel):
+        # try to find a wheel for easy metadata extraction
+        finder.ignore_compatibility = True
+        new_found = attempt_to_find()
+        if new_found is not None:
+            found = new_found
+        finder.ignore_compatibility = False
+    return found
+
+
 class PreparedPythonCandidate(BasePreparedCandidate):
     ui: UI = ui
-    project: Project | None = (None,)
-    project_cache: ProjectCache | None = (None,)
+    environment: PythonEnvironment | None = None
+    project_cache: ProjectCache | None = None
 
     def __init__(
         self,
         candidate: Candidate,
-        project: Project | None = None,
+        environment: PythonEnvironment | None = None,
         project_cache: ProjectCache | None = None,
         ui: UI = ui,
     ) -> None:
-        if project is None:
-            project = Project()
-        project_cache = project_cache or project.project_cache
+        if environment is None:
+            self.environment = PythonEnvironment(project=Project())  # TODO: assure
+        self.project = self.environment.project
+        project_cache = project_cache or self.project.project_cache
         super().__init__(candidate=candidate, project_cache=project_cache)
 
         self.wheel: Path | None = None
@@ -174,17 +216,17 @@ class PreparedPythonCandidate(BasePreparedCandidate):
         else:
             return None
 
-    def _ring_compatible(self, ring_file: str, allow_all: bool = False) -> bool:
+    def _wheel_compatible(self, wheel_file: str, allow_all: bool = False) -> bool:
         if allow_all:
             return True
         supported_tags = (
             self.project.target_python.supported_tags()
         )  # TODO: make mups supported tags
-        file_tags = parse_ring_filename(ring_file)[-1]
+        file_tags = parse_wheel_filename(wheel_file)[-1]
         return not file_tags.isdisjoint(supported_tags)
 
     def _get_cached_wheel(self) -> Path | None:
-        ring_cache = self.project_cache.make_ring_cache()  # TODO
+        ring_cache = self.project_cache.make_wheel_cache()  # TODO
         assert self.candidate.link
         cache_entry = ring_cache.get(
             self.candidate.link, self.candidate.name, self.environment.target_python
@@ -203,7 +245,7 @@ class PreparedPythonCandidate(BasePreparedCandidate):
             # In this branch the requirement must be an editable VCS requirement.
             # The repository will be unpacked into a *persistent* src directory.
             prefix: Path | None = None
-            if self.environment.is_local:  # TODO
+            if self.environment.is_local:  # TODO: deprecate: rejected PEP582 path
                 prefix = self.environment.packages_path  # type: ignore[attr-defined]
             else:
                 venv = self.environment.interpreter.get_venv()
@@ -258,8 +300,8 @@ class PreparedPythonCandidate(BasePreparedCandidate):
         :param allow_all: If true, don't validate the wheel tag nor hashes
         :param unpack: Whether to download and unpack the link if it's not local
         """
-        if self.ring:
-            if self._ring_compatible(
+        if self.wheel:
+            if self._wheel_compatible(
                 self.ring.name, allow_all
             ):  # TODO: use .stem instead of name
                 return
@@ -269,14 +311,14 @@ class PreparedPythonCandidate(BasePreparedCandidate):
         with self.environment.get_finder() as finder:  # TODO
             if (
                 not self.link
-                or self.link.is_ring
-                and not self._ring_compatible(self.link.filename, allow_all)
+                or self.link.is_wheel  # TODO
+                and not self._wheel_compatible(self.link.filename, allow_all)
             ):
                 if self.req.is_file_or_url:
                     raise CandidateNotFound(
                         f"The URL requirement {self.req.as_line()} is a wheel but incompatible"
                     )
-                self.link = self.ring = None  # reset the incompatible wheel
+                self.link = self.wheel = None  # reset the incompatible wheel
                 self.link = _find_best_match_link_pypi(
                     finder,
                     self.req.as_pinned_version(self.candidate.version),
@@ -290,7 +332,7 @@ class PreparedPythonCandidate(BasePreparedCandidate):
                 if not self.candidate.link:
                     self.candidate.link = self.link
             if allow_all and not self.req.editable:
-                cached = self._get_cached_ring()  # TODO
+                cached = self._get_cached_wheel()  # TODO
                 if cached:
                     self.ring = cached
                     return
@@ -430,16 +472,16 @@ class PreparedPythonCandidate(BasePreparedCandidate):
             return _egg_info_re.search(link.filename) is not None
         return False
 
-    def _get_ring_dir(self) -> str:
+    def _get_wheel_dir(self) -> str:
         assert self.candidate.link
-        ring_cache = self.project.make_ring_cache()
+        wheel_cache = self.project.project_cache.make_wheel_cache()
         if self.should_cache():
             logger.info("Saving wheel to cache: %s", self.candidate.link)
-            return ring_cache.get_path_for_link(
+            return wheel_cache.get_path_for_link(
                 self.candidate.link, self.environment.target_python
             ).as_posix()
         else:
-            return ring_cache.get_ephemeral_path_for_link(  # TODO
+            return wheel_cache.get_ephemeral_path_for_link(  # TODO
                 self.candidate.link, self.environment.target_python
             ).as_posix()
 
@@ -464,17 +506,19 @@ class PreparedPythonCandidate(BasePreparedCandidate):
                 self.ring = cached
                 return self.ring
         assert self._source_dir, "Source directory isn't ready yet"
-        builder_cls = (
-            EditableBuilder if self.req.editable else WheelBuilder
-        )  # TODO: RingBuilder
-        builder = builder_cls(str(self._unpacked_dir), self.environment)  # TODO
-        build_dir = self._get_ring_dir()
+        builder_cls = EditableBuilder if self.req.editable else WheelBuilder
+        builder = builder_cls(
+            str(self._unpacked_dir), self.environment
+        )  # TODO: refine init, use kwargs.
+        build_dir = self._get_wheel_dir()
         os.makedirs(build_dir, exist_ok=True)
-        logger.info("Running PEP 517 backend to build a wheel for %s", self.link)
-        self.ring = Path(
+        logger.info(
+            "Running PEP 517 backend to build a wheel for %s", self.link
+        )  # TODO: really?
+        self.wheel = Path(
             builder.build(build_dir, metadata_directory=self._metadata_dir)  # TODO
         )
-        return self.ring
+        return self.wheel
 
 
 class PreparedMojoCandidate(BasePreparedCandidate):
@@ -484,13 +528,14 @@ class PreparedMojoCandidate(BasePreparedCandidate):
     def __init__(
         self,
         candidate: Candidate,
-        project: Project | None = None,
+        environment: MojoEnvironment | None = None,
         project_cache: ProjectCache | None = None,
         ui: UI = ui,
     ) -> None:
-        if project is None:
-            project = Project()
-        project_cache = project_cache or project.project_cache
+        if environment is None:
+            self.environment = MojoEnvironment(project=Project())
+        self.project = self.environment.project
+        project_cache = project_cache or self.project.project_cache
         super().__init__(candidate=candidate, project_cache=project_cache)
 
         self.ring: Path | None = None
@@ -539,7 +584,7 @@ class PreparedMojoCandidate(BasePreparedCandidate):
             )
         elif isinstance(req, FileMuseRequirement):
             assert self.link is not None
-            if self.link.is_file and self.link.file_path.is_dir():
+            if self.link.is_file and self.link.file_path.is_dir():  # TODO: why white?
                 return _filter_none(
                     {
                         "url": self.link.url_without_fragment,
@@ -566,7 +611,9 @@ class PreparedMojoCandidate(BasePreparedCandidate):
     def _ring_compatible(self, ring_file: str, allow_all: bool = False) -> bool:
         if allow_all:
             return True
-        # supported_tags = self.environment.target_python.supported_tags()  # TODO: make mups supported tags
+        supported_tags = (
+            self.environment.target_mojo.supported_tags()
+        )  # TODO: make mups supported tags
         file_tags = parse_ring_filename(ring_file)[-1]
         return not file_tags.isdisjoint(supported_tags)
 
@@ -590,7 +637,7 @@ class PreparedMojoCandidate(BasePreparedCandidate):
             # In this branch the requirement must be an editable VCS requirement.
             # The repository will be unpacked into a *persistent* src directory.
             prefix: Path | None = None
-            if self.environment.is_local:  # TODO
+            if self.environment.is_local:  # TODO: remove, dead pep582 path
                 prefix = self.environment.packages_path  # type: ignore[attr-defined]
             else:
                 venv = self.environment.interpreter.get_venv()
@@ -630,10 +677,10 @@ class PreparedMojoCandidate(BasePreparedCandidate):
                     self._unpacked_dir = result
 
     def _get_cached_ring(self) -> Path | None:
-        ring_cache = self.project.make_ring_cache()
+        ring_cache = self.project.project_cache.make_ring_cache()
         assert self.candidate.link
         cache_entry = ring_cache.get(
-            self.candidate.link, self.candidate.name, self.environment.target_python
+            self.candidate.link, self.candidate.name, self.environment.target_mojo
         )  # TODO
         if cache_entry is not None:
             logger.info("Using cached wheel: %s", cache_entry)
@@ -703,10 +750,10 @@ class PreparedMojoCandidate(BasePreparedCandidate):
     def _get_metadata_from_build(  # TODO: it's a mess.
         self, source_dir: Path, metadata_parent: str
     ) -> im.Distribution:
-        builder = EditableBuilder if self.req.editable else WheelBuilder
+        Builder = EditableBuilder if self.req.editable else WheelBuilder
         try:
             logger.info("Running PEP 517 backend to get metadata for %s", self.link)
-            self._metadata_dir = builder(source_dir, self.environment).prepare_metadata(
+            self._metadata_dir = Builder(source_dir, self.environment).prepare_metadata(
                 metadata_parent
             )
         except BuildError:
@@ -766,9 +813,9 @@ class PreparedMojoCandidate(BasePreparedCandidate):
             return self._get_metadata_from_ring(self.ring, metadata_parent)
 
         assert self._unpacked_dir, "Source directory isn't ready yet"
-        pyproject_toml = self._unpacked_dir / "pyproject.toml"
-        if not force_build and pyproject_toml.exists():
-            dist = self._get_metadata_from_project(pyproject_toml)
+        mojoproject_toml = self._unpacked_dir / DEFAULT_MOJOPROJECT_FILENAME
+        if not force_build and mojoproject_toml.exists():
+            dist = self._get_metadata_from_project(mojoproject_toml)  # TODO
             if dist is not None:
                 return dist
 
@@ -776,7 +823,7 @@ class PreparedMojoCandidate(BasePreparedCandidate):
         return self._get_metadata_from_build(self._unpacked_dir, metadata_parent)
 
     @property
-    def metadata(self) -> im.Distribution:
+    def metadata(self) -> im.Distribution:  # TODO: use toml as return value
         if self._metadata is None:
             result = self.prepare_metadata()  # TODO: use mups.RingInfo
             if not self.candidate.name:
@@ -819,7 +866,7 @@ class PreparedMojoCandidate(BasePreparedCandidate):
 
     def _get_ring_dir(self) -> str:
         assert self.candidate.link
-        ring_cache = self.project.make_ring_cache()
+        ring_cache = self.project.project_cache.make_ring_cache()
         if self.should_cache():
             logger.info("Saving wheel to cache: %s", self.candidate.link)
             return ring_cache.get_path_for_link(
@@ -831,13 +878,13 @@ class PreparedMojoCandidate(BasePreparedCandidate):
             ).as_posix()
 
     def _get_cached_ring(self) -> Path | None:
-        ring_cache = self.project.make_ring_cache()
+        ring_cache = self.project.project_cache.make_ring_cache()
         assert self.candidate.link
         cache_entry = ring_cache.get(
             self.candidate.link, self.candidate.name, self.environment.target_python
         )  # TODO
         if cache_entry is not None:
-            logger.info("Using cached wheel: %s", cache_entry)
+            logger.info("Using cached ring: %s", cache_entry)
         return cache_entry
 
     def build(self) -> Path:
@@ -852,7 +899,7 @@ class PreparedMojoCandidate(BasePreparedCandidate):
                 return self.ring
         assert self._source_dir, "Source directory isn't ready yet"
         builder_cls = (
-            EditableBuilder if self.req.editable else WheelBuilder
+            EditableBuilder if self.req.editable else RingBuilder
         )  # TODO: RingBuilder
         builder = builder_cls(str(self._unpacked_dir), self.environment)  # TODO
         build_dir = self._get_ring_dir()
@@ -865,16 +912,18 @@ class PreparedMojoCandidate(BasePreparedCandidate):
 
 
 def prepare(
-    candidate: Candidate, project: Project | None = None, is_mojo: bool = True
+    candidate: Candidate,
+    environment: BaseEnvironment | None = None,
+    is_mojo: bool = True,
 ) -> BasePreparedCandidate:
     """Prepare the candidate for installation."""
     if candidate._prepared is None:
         if is_mojo:
             candidate._prepared = PreparedMojoCandidate(
-                candidate=candidate, project=project
+                candidate=candidate, environment=environment
             )
         else:
             candidate._prepared = PreparedPythonCandidate(
-                candidate=candidate, project=project
+                candidate=candidate, environment=environment
             )
     return candidate._prepared

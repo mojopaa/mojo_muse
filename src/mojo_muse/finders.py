@@ -10,6 +10,7 @@ from urllib.parse import urljoin
 
 import packaging
 import packaging.tags
+from packaging.requirements import Requirement
 from packaging.utils import BuildTag, canonicalize_name, parse_wheel_filename
 from packaging.version import parse as parse_version
 
@@ -46,7 +47,7 @@ class BestMatch(NamedTuple):
 
 
 class PyPackageFinder:
-    """The main class for the unearth package.
+    """Used to be the main class for the unearth package.
 
     Args:
         session (PyPISession|None): The session to use for the finder.
@@ -185,7 +186,7 @@ class PyPackageFinder:
     def _evaluate_packages(
         self,
         packages: Iterable[Package],
-        requirement: packaging.requirements.Requirement,
+        requirement: Requirement,
         allow_prereleases: bool | None = None,
     ) -> Iterable[Package]:
         evaluator = functools.partial(
@@ -289,7 +290,7 @@ class PyPackageFinder:
 
     def _find_packages_from_requirement(
         self,
-        requirement: packaging.requirements.Requirement,
+        requirement: Requirement,
         allow_yanked: bool | None = None,
     ) -> Iterable[Package]:
         if allow_yanked is None:
@@ -301,7 +302,7 @@ class PyPackageFinder:
 
     def find_matches(
         self,
-        requirement: packaging.requirements.Requirement | str,
+        requirement: Requirement | str,
         allow_yanked: bool | None = None,
         allow_prereleases: bool | None = None,
         hashes: dict[str, list[str]] | None = None,
@@ -321,7 +322,7 @@ class PyPackageFinder:
             Sequence[Package]: The packages sorted by best match
         """
         if isinstance(requirement, str):
-            requirement = packaging.requirements.Requirement(requirement)
+            requirement = Requirement(requirement)
         return LazySequence(
             self._evaluate_hashes(
                 self._evaluate_packages(
