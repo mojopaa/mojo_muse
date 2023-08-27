@@ -54,6 +54,7 @@ class Link:
     comes_from: str | None = None
     yank_reason: str | None = None
     requires_python: str | None = None
+    requires_mojo: str | None = None
     dist_info_metadata: bool | dict[str, str] | None = None
     hashes: dict[str, str] | None = None
     vcs: str | None = dc.field(init=False, default=None)
@@ -127,6 +128,10 @@ class Link:
     @property
     def is_ring(self) -> bool:
         return self.filename.endswith(".ring")
+
+    @property
+    def is_wheel(self) -> bool:
+        return self.filename.endswith(".whl")
 
     @cached_property
     def url_without_fragment(self) -> str:

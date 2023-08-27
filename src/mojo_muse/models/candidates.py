@@ -121,7 +121,7 @@ class Candidate:
             req,
             name=candidate.name,
             version=str(candidate.version),
-            link=candidate.link,
+            link=candidate.link,  # TODO
         )
 
     @property
@@ -140,12 +140,12 @@ class Candidate:
                     # pass
                     raise
                 else:
-                    self._requires_python = requires_mojo
-        return self._requires_python or ""
+                    self._requires_mojo = requires_mojo
+        return self._requires_mojo or ""
 
     @requires_mojo.setter
     def requires_mojo(self, value: str) -> None:
-        self._requires_python = value
+        self._requires_mojo = value
 
     def as_lockfile_entry(self, project_root: Path) -> dict[str, Any]:
         """Build a lockfile entry dictionary for the candidate."""
