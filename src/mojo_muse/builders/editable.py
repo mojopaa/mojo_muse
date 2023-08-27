@@ -3,9 +3,10 @@ from __future__ import annotations
 import os
 from typing import Any, ClassVar, Mapping
 
-from pdm.builders.base import EnvBuilder
-from pdm.termui import logger
 from pyproject_hooks import HookMissing
+
+from ..termui import logger
+from .base import EnvBuilder
 
 
 class EditableBuilder(EnvBuilder):

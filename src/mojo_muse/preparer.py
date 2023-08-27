@@ -1,4 +1,4 @@
-"""Unpack the link to an installed wheel or source."""
+"""Unpack the link to an installed wheel or source. Originate from unearth.preparer."""
 from __future__ import annotations
 
 import hashlib

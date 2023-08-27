@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from typing import Any, Mapping
 
-from pdm.builders.base import EnvBuilder
+from .base import EnvBuilder
 
 
 class WheelBuilder(EnvBuilder):

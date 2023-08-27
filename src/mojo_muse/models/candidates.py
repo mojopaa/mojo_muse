@@ -2,11 +2,8 @@ from __future__ import annotations
 
 import base64
 import dataclasses
-import hashlib
 import importlib.metadata as im
 import os
-import re
-import warnings
 from abc import ABC, abstractmethod
 from functools import cached_property, lru_cache
 from pathlib import Path
@@ -15,9 +12,6 @@ from typing import Any, cast
 from mups import normalize_name, parse_ring_filename
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 
-from ..exceptions import CandidateNotFound
-from ..finders import PyPackageFinder
-from ..termui import UI, logger, ui
 from ..utils import (
     CandidateInfo,
     FileHash,
@@ -32,7 +26,6 @@ from ..utils import (
 from .caches import JSONFileCache, ProjectCache
 from .link import Link
 from .requirements import BaseMuseRequirement, FileMuseRequirement, VcsMuseRequirement
-from .vcs import vcs_support
 
 
 class Candidate:
@@ -51,6 +44,7 @@ class Candidate:
         "hashes",
         "_prepared",
         "_requires_mojo",  # TODO: move to subclass
+        "_requires_python",
         "_preferred",
     )
 
@@ -73,6 +67,7 @@ class Candidate:
         self.hashes: list[FileHash] = []
 
         self._requires_mojo: str | None = None
+        self._requires_python: str | None = None
         self._prepared: BasePreparedCandidate | None = None
 
     def identify(self) -> str:

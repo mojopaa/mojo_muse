@@ -19,8 +19,10 @@ except ImportError:
 # from pdm.environments import PythonEnvironment
 from ..exceptions import BuildError
 from ..in_process import get_sys_config_paths
+from ..installers import install_requirements
 from ..models.requirements import Requirement, parse_requirement
 from ..models.working_set import WorkingSet
+from ..project import BaseEnvironment, PythonEnvironment
 from ..termui import logger
 from ..utils import create_tracked_tempdir
 
@@ -293,8 +295,6 @@ class EnvBuilder:
         return missing
 
     def install(self, requirements: Iterable[str], shared: bool = False) -> None:
-        from pdm.installers.core import install_requirements
-
         missing = list(self.check_requirements(requirements))
         if not missing:
             return
