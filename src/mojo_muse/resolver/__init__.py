@@ -6,10 +6,9 @@ from mups import normalize_name
 from resolvelib.resolvers import Resolver
 
 from ..models.candidates import Candidate
-from ..models.repositories import BaseRepository
 from ..models.requirements import BaseMuseRequirement, strip_extras
 from ..models.specifiers import PySpecSet
-from ..project import Project
+from ..project import BaseRepository, Project
 from .providers import BaseProvider, get_provider
 from .python import PythonRequirement
 from .reporters import get_reporter
