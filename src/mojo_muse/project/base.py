@@ -32,6 +32,7 @@ from ..exceptions import (
     CandidateNotFound,
     MuseUsageError,
     NoPythonVersion,
+    ProjectError,
     UnpackError,
     deprecation_warning,
 )
@@ -730,3 +731,11 @@ def get_pypi_finder(
             yield finder
         finally:
             session.close()
+
+
+def check_project_file(project: Project) -> None:
+    """Check the existence of the project file and throws an error on failure."""
+    if not project.pyproject.is_valid:
+        raise ProjectError(
+            "The pyproject.toml has not been initialized yet. You can do this by running [success]`pdm init`[/]."
+        ) from None
