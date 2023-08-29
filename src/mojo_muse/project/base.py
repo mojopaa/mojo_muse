@@ -554,14 +554,6 @@ class Project:
         if write:
             self.lockfile.write(show_message)
 
-    def make_self_candidate(self, editable: bool = True) -> Candidate:  # TODO: move
-        req = parse_requirement(path_to_url(self.root.as_posix()), editable)
-        assert self.name
-        req.name = self.name
-        can = make_candidate(req, name=self.name, link=Link.from_path(self.root))
-        can.prepare(self.environment).metadata  # TODO
-        return can
-
     def is_lockfile_hash_match(self) -> bool:
         hash_in_lockfile = str(self.lockfile.hash)
         if not hash_in_lockfile:

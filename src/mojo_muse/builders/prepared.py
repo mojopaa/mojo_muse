@@ -15,13 +15,19 @@ from packaging.utils import parse_wheel_filename
 from ..exceptions import BuildError, CandidateNotFound
 from ..finders import PyPackageFinder
 from ..models.caches import ProjectCache
-from ..models.candidates import BasePreparedCandidate, Candidate, MetadataDistribution
+from ..models.candidates import (
+    BasePreparedCandidate,
+    Candidate,
+    MetadataDistribution,
+    make_candidate,
+)
 from ..models.link import Link
 from ..models.requirements import (
     BaseMuseRequirement,
     FileMuseRequirement,
     VcsMuseRequirement,
     filter_requirements_with_extras,
+    parse_requirement,
 )
 from ..models.setup import Setup
 from ..models.vcs import vcs_support
@@ -927,3 +933,15 @@ def prepare(
                 candidate=candidate, environment=environment
             )
     return candidate._prepared
+
+
+def make_project_a_candidate(
+    environment: BaseEnvironment, project: Project | None = None, editable: bool = True
+) -> Candidate:
+    project = project or environment.project
+    req = parse_requirement(path_to_url(project.root.as_posix()), editable)
+    assert project.name
+    req.name = project.name
+    can = make_candidate(req, name=project.name, link=Link.from_path(project.root))
+    prepare(candidate=can, environment=environment).metadata
+    return can
