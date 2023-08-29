@@ -629,11 +629,6 @@ class Project:
     def make_hash_cache(self) -> HashCache:
         return self.project_cache.make_hash_cache()
 
-    def get_working_set(self) -> WorkingSet:  # TODO: move
-        """Get the working set based on local packages directory."""
-        paths = self.get_paths()  # TODO: it's environment
-        return WorkingSet([paths["platlib"], paths["purelib"]])
-
 
 # original finders.py
 
