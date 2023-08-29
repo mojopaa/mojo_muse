@@ -55,7 +55,6 @@ from ..models.info import MojoInfo, PythonInfo
 from ..models.link import Link
 from ..models.lockfile import Lockfile
 from ..models.project_file import MojoProjectFile, PyProjectFile
-from ..models.repositories import BaseRepository, LockedRepository, MojoPIRepository
 from ..models.requirements import (
     BaseMuseRequirement,
     FileMuseRequirement,
@@ -528,24 +527,6 @@ class Project:
     @property
     def allow_prereleases(self) -> bool | None:
         return self.mojoproject.settings.get("allow_prereleases")
-
-    def get_repository(  # TODO: move
-        self, cls: type[BaseRepository] | None = None, ignore_compatibility: bool = True
-    ) -> BaseRepository:
-        """Get the repository object"""
-        if cls is None:
-            # cls = self.core.repository_class  # TODO: need to investigate
-            cls = MojoPIRepository
-        sources = self.sources or []
-        return cls(sources, ignore_compatibility=ignore_compatibility)
-
-    @property
-    def locked_repository(self) -> LockedRepository:  # TODO move this
-        lockfile = self.lockfile._data.unwrap()
-        # except ProjectError:
-        #     lockfile = {}
-
-        return LockedRepository(lockfile, self.sources)
 
     def get_lock_metadata(self) -> dict[str, Any]:
         content_hash = "sha256:" + self.mojoproject.content_hash("sha256")

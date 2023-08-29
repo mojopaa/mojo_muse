@@ -32,6 +32,7 @@ from ..utils import (
     url_to_path,
     url_without_fragments,
 )
+from .base import Project
 from .environments import BaseEnvironment
 
 CandidateKey = tuple[str, str | None, str | None, bool]
@@ -577,3 +578,24 @@ class LockedRepository(BaseRepository):
 
     def get_hashes(self, candidate: Candidate) -> list[FileHash]:
         return candidate.hashes
+
+
+def get_repository(
+    project: Project,
+    cls: type[BaseRepository] | None = None,
+    ignore_compatibility: bool = True,
+) -> BaseRepository:
+    """Get the repository object"""
+    if cls is None:
+        # cls = self.core.repository_class  # TODO: need to investigate
+        cls = MojoPIRepository  # TODO
+    sources = project.sources or []
+    return cls(sources, ignore_compatibility=ignore_compatibility)
+
+
+def get_locked_repository(project: Project) -> LockedRepository:
+    lockfile = project.lockfile._data.unwrap()
+    # except ProjectError:
+    #     lockfile = {}
+
+    return LockedRepository(lockfile, project.sources)
