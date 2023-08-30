@@ -2,7 +2,7 @@ from typing import cast
 
 import click
 
-from .core import do_init
+from .core.porcelain import do_init
 from .project import Project
 from .termui import ask
 

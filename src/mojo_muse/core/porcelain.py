@@ -5,20 +5,20 @@ import tomlkit
 from mups import get_username_email_from_git, normalize_name
 from resolvelib import ResolutionImpossible, ResolutionTooDeep, Resolver
 
-from . import termui
-from .exceptions import MuseUsageError
-from .formats import array_of_inline_tables, make_array, make_inline_table
-from .formats.base import make_array, make_inline_table
-from .models.backends import _BACKENDS, DEFAULT_BACKEND, get_backend
-from .models.candidates import Candidate
-from .models.requirements import BaseMuseRequirement, parse_requirement
-from .models.specifiers import get_specifier
-from .project import BaseEnvironment, Project, check_project_file
-from .project.repositories import BaseRepository, get_locked_repository, get_repository
-from .resolver import resolve_python
-from .resolver.providers import get_provider
-from .templates import MojoProjectTemplate, PyProjectTemplate
-from .termui import ask
+from .. import termui
+from ..exceptions import MuseUsageError
+from ..formats import array_of_inline_tables, make_array, make_inline_table
+from ..formats.base import make_array, make_inline_table
+from ..models.backends import _BACKENDS, DEFAULT_BACKEND, get_backend
+from ..models.candidates import Candidate
+from ..models.requirements import BaseMuseRequirement, parse_requirement
+from ..models.specifiers import get_specifier
+from ..project import BaseEnvironment, Project, check_project_file
+from ..project.repositories import BaseRepository, get_locked_repository, get_repository
+from ..resolver import resolve_python
+from ..resolver.providers import get_provider
+from ..templates import MojoProjectTemplate, PyProjectTemplate
+from ..termui import ask
 
 
 # init
@@ -268,12 +268,13 @@ def do_lock(
             with ui.open_spinner(title="Resolving dependencies") as spin:
                 reporter = project.get_reporter(requirements, tracked_names, spin)
                 resolver: Resolver = project.core.resolver_class(provider, reporter)
-                hooks.try_emit("pre_lock", requirements=requirements, dry_run=dry_run)
-                mapping, dependencies = resolve(
-                    resolver,
-                    requirements,
-                    project.environment.python_requires,
-                    resolve_max_rounds,
+                # hooks.try_emit("pre_lock", requirements=requirements, dry_run=dry_run)
+                mapping, dependencies = resolve_python(
+                    resolver=resolver,
+                    requirements=requirements,
+                    requires_python=project.requires_python,
+                    project=project,
+                    max_rounds=resolve_max_rounds,
                 )
                 spin.update("Fetching hashes for resolved packages...")
                 fetch_hashes(provider.repository, mapping)
@@ -307,7 +308,7 @@ def do_lock(
     return mapping
 
 
-def do_add(
+def do_padd(
     project: Project,
     editables: Collection[str] = (),
     packages: Collection[str] = (),
