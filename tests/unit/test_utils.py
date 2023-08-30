@@ -58,6 +58,9 @@ def test_find_project_root():
     assert find_project_root(cwd=p.parent) == p.parent
     os.remove(p)
 
+    # assert that find_project_root() is usable with Path withou type checking errors.
+    assert Path(find_project_root())
+
 
 def test_path_to_url():
     path = r"C:\Users\drunk\projects\mojo_muse\src\mojo_muse\utils.py"
