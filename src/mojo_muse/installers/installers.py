@@ -18,7 +18,7 @@ from installer.sources import WheelContentElement
 from installer.sources import WheelFile as _WheelFile
 from installer.sources import _WheelFileValidationError
 
-from ..project import Project
+from ..project import BaseEnvironment, Project
 from ..termui import logger
 from ..utils import fs_supports_symlink
 from .packages import CachedPackage

@@ -4,8 +4,9 @@ import os
 import shutil
 from pathlib import Path
 
-from pdm.termui import logger
-from pdm.utils import pdm_scheme
+from ..termui import logger
+
+# from ..utils import pdm_scheme
 
 
 class CachedPackage:
@@ -56,9 +57,9 @@ class CachedPackage:
             (self.path / "referrers").write_text("\n".join(referrers) + "\n", "utf8")
             self._referrers = None
 
-    def scheme(self) -> dict[str, str]:
-        """The install scheme for the package"""
-        return pdm_scheme(str(self.path))
+    # def scheme(self) -> dict[str, str]:
+    #     """The install scheme for the package"""
+    #     return pdm_scheme(str(self.path))
 
     def cleanup(self) -> None:
         logger.info(

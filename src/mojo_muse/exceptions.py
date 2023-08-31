@@ -11,6 +11,10 @@ class InstallationError(MuseException):
     pass
 
 
+class UninstallError(MuseException):
+    pass
+
+
 class MuseUsageError(MuseException):
     pass
 

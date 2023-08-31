@@ -1,10 +1,11 @@
 import base64
 import hashlib
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Iterable, cast
+from typing import Iterable, Mapping, cast
 
 from packaging.version import Version
-from resolvelib import ResolutionImpossible
+from resolvelib import ResolutionImpossible, Resolver
 from resolvelib.resolvers import RequirementInformation
 
 from .. import termui
@@ -15,8 +16,11 @@ from ..models.python import PythonInfo
 from ..models.requirements import BaseMuseRequirement
 from ..models.specifiers import PySpecSet, get_specifier
 from ..models.venv import VirtualEnv, get_venv_python
-from ..project import BaseEnvironment, Project, create_venv
+from ..project import BaseEnvironment, BaseRepository, Project, create_venv
+from ..resolver import resolve_python
+from ..resolver.providers import get_provider
 from ..resolver.python import PythonRequirement
+from ..resolver.reporters import BaseReporter
 from ..utils import comparable_version
 
 
@@ -354,3 +358,42 @@ def populate_requirement_names(req_mapping: dict[str, BaseMuseRequirement]) -> N
         if key and key.startswith(":empty:"):
             req_mapping[req.identify()] = req
             del req_mapping[key]
+
+
+def fetch_hashes(repository: BaseRepository, mapping: Mapping[str, Candidate]) -> None:
+    """Fetch hashes for candidates in parallel"""
+
+    def do_fetch(candidate: Candidate) -> None:
+        candidate.hashes = repository.get_hashes(candidate)
+
+    with ThreadPoolExecutor() as executor:
+        executor.map(do_fetch, mapping.values())
+
+
+def resolve_candidates_from_lockfile(
+    environment: BaseEnvironment,
+    requirements: Iterable[BaseMuseRequirement],
+    project: Project | None = None,
+) -> dict[str, Candidate]:
+    project = project or environment.project
+    ui = project.ui
+    resolve_max_rounds = int(project.config["strategy.resolve_max_rounds"])
+    reqs = [
+        req
+        for req in requirements
+        if not req.marker or req.marker.evaluate(environment.marker_environment)
+    ]
+    with ui.logging("install-resolve"):
+        with ui.open_spinner("Resolving packages from lockfile...") as spinner:
+            reporter = BaseReporter()
+            provider = get_provider(for_install=True)
+            resolver: Resolver = Resolver(provider, reporter)
+            mapping, *_ = resolve_python(
+                resolver,
+                reqs,
+                environment.requires_python,
+                resolve_max_rounds,
+            )
+            spinner.update("Fetching hashes for resolved packages...")
+            fetch_hashes(provider.repository, mapping)
+    return mapping

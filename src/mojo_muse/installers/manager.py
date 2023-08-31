@@ -1,16 +1,14 @@
 from __future__ import annotations
 
+from importlib.metadata import Distribution
 from typing import TYPE_CHECKING
 
-from pdm import termui
-from pdm.exceptions import UninstallError
-from pdm.installers.installers import install_wheel, install_wheel_with_cache
-from pdm.installers.uninstallers import BaseRemovePaths, StashedRemovePaths
-
-if TYPE_CHECKING:
-    from pdm.compat import Distribution
-    from pdm.environments import BaseEnvironment
-    from pdm.models.candidates import Candidate
+from .. import termui
+from ..exceptions import UninstallError
+from ..models.candidates import Candidate
+from ..project.environments import BaseEnvironment
+from .installers import install_wheel, install_wheel_with_cache
+from .uninstallers import BaseRemovePaths, StashedRemovePaths
 
 
 class InstallManager:

@@ -12,6 +12,7 @@ from typing import Any, cast
 from mups import normalize_name, parse_ring_filename
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 
+from ..exceptions import InvalidPyVersion
 from ..utils import (
     CandidateInfo,
     FileHash,
@@ -26,6 +27,7 @@ from ..utils import (
 from .caches import JSONFileCache, ProjectCache
 from .link import Link
 from .requirements import BaseMuseRequirement, FileMuseRequirement, VcsMuseRequirement
+from .specifiers import PySpecSet
 
 
 class Candidate:
@@ -123,6 +125,28 @@ class Candidate:
             version=str(candidate.version),
             link=candidate.link,  # TODO
         )
+
+    @property
+    def requires_python(self) -> str:
+        """The Python version constraint of the candidate."""
+        if self._requires_python is not None:
+            return self._requires_python
+        if self.link:
+            requires_python = self.link.requires_python
+            if requires_python is not None:
+                if requires_python.isdigit():
+                    requires_python = f">={requires_python},<{int(requires_python) + 1}"
+                try:  # ensure the specifier is valid
+                    PySpecSet(requires_python)
+                except InvalidPyVersion:
+                    pass
+                else:
+                    self._requires_python = requires_python
+        return self._requires_python or ""
+
+    @requires_python.setter
+    def requires_python(self, value: str) -> None:
+        self._requires_python = value
 
     @property
     def requires_mojo(self) -> str:

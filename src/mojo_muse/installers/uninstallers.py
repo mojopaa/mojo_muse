@@ -4,18 +4,16 @@ import abc
 import glob
 import os
 import shutil
+from importlib.metadata import Distribution
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Iterable, TypeVar, cast
 
-from pdm import termui
-from pdm.exceptions import UninstallError
-from pdm.installers.packages import CachedPackage
-from pdm.utils import is_egg_link, is_path_relative_to
-
-if TYPE_CHECKING:
-    from pdm.compat import Distribution
-    from pdm.environments import BaseEnvironment
+from .. import termui
+from ..exceptions import UninstallError
+from ..project import BaseEnvironment
+from ..utils import is_egg_link, is_path_relative_to
+from .packages import CachedPackage
 
 _T = TypeVar("_T", bound="BaseRemovePaths")
 

@@ -1,4 +1,3 @@
-from concurrent.futures import ThreadPoolExecutor
 from typing import Collection, Iterable, Mapping, cast
 
 import tomlkit
@@ -9,6 +8,7 @@ from .. import termui
 from ..exceptions import MuseUsageError
 from ..formats import array_of_inline_tables, make_array, make_inline_table
 from ..formats.base import make_array, make_inline_table
+from ..installers.synchronizers import Synchronizer
 from ..models.backends import _BACKENDS, DEFAULT_BACKEND, get_backend
 from ..models.candidates import Candidate
 from ..models.requirements import BaseMuseRequirement, parse_requirement
@@ -18,12 +18,15 @@ from ..project.filters import GroupSelection
 from ..project.repositories import BaseRepository, get_locked_repository, get_repository
 from ..resolver import resolve_python
 from ..resolver.providers import get_provider
+from ..resolver.reporters import get_reporter
 from ..templates import MojoProjectTemplate, PyProjectTemplate
 from ..termui import ask
 from .plumbing import (
     do_use,
+    fetch_hashes,
     format_resolution_impossible,
     populate_requirement_names,
+    resolve_candidates_from_lockfile,
     save_version_specifiers,
     set_python,
 )
@@ -197,16 +200,6 @@ def format_lockfile(
     return cast(dict, doc)
 
 
-def fetch_hashes(repository: BaseRepository, mapping: Mapping[str, Candidate]) -> None:
-    """Fetch hashes for candidates in parallel"""
-
-    def do_fetch(candidate: Candidate) -> None:
-        candidate.hashes = repository.get_hashes(candidate)
-
-    with ThreadPoolExecutor() as executor:
-        executor.map(do_fetch, mapping.values())
-
-
 def do_lock(
     environment: BaseEnvironment,
     strategy: str = "all",
@@ -232,9 +225,9 @@ def do_lock(
         dependencies: dict[tuple[str, str | None], list[BaseMuseRequirement]] = {}
         with project.ui.open_spinner("Re-calculating hashes..."):
             for key, candidate in locked_repo.packages.items():
-                reqs, python_requires, summary = locked_repo.candidate_info[key]
+                reqs, requires_python, summary = locked_repo.candidate_info[key]
                 candidate.summary = summary
-                candidate.requires_python = python_requires  # TODO
+                candidate.requires_python = requires_python
                 mapping[candidate.identify()] = candidate
                 dependencies[candidate.dep_key] = list(map(parse_requirement, reqs))
             with project.ui.logging("lock"):
@@ -277,10 +270,8 @@ def do_lock(
         # any message is thrown to the output.
         try:
             with ui.open_spinner(title="Resolving dependencies") as spin:
-                reporter = project.get_reporter(requirements, tracked_names, spin)
-                resolver: Resolver = project.core.resolver_class(
-                    provider, reporter
-                )  # TODO
+                reporter = get_reporter(requirements, tracked_names, spin)
+                resolver: Resolver = Resolver(provider, reporter)  # TODO
                 # hooks.try_emit("pre_lock", requirements=requirements, dry_run=dry_run)
                 mapping, dependencies = resolve_python(
                     resolver=resolver,
@@ -321,12 +312,56 @@ def do_lock(
     return mapping
 
 
+def do_sync(
+    project: Project,
+    *,
+    selection: GroupSelection,
+    dry_run: bool = False,
+    clean: bool = False,
+    requirements: list[BaseMuseRequirement] | None = None,
+    tracked_names: Collection[str] | None = None,
+    no_editable: bool | Collection[str] = False,
+    no_self: bool = False,
+    reinstall: bool = False,
+    only_keep: bool = False,
+    fail_fast: bool = False,
+    # hooks: HookManager | None = None,
+) -> None:
+    """Synchronize project"""
+    # hooks = hooks or HookManager(project)
+    if requirements is None:
+        requirements = []
+        selection.validate()
+        for group in selection:
+            requirements.extend(project.get_dependencies(group).values())
+    candidates = resolve_candidates_from_lockfile(project, requirements)
+    if tracked_names and dry_run:
+        candidates = {
+            name: c for name, c in candidates.items() if name in tracked_names
+        }
+    synchronizer = Synchronizer(
+        candidates,
+        project,
+        clean=clean,
+        dry_run=dry_run,
+        no_editable=no_editable,
+        install_self=not no_self and bool(project.name),
+        reinstall=reinstall,
+        only_keep=only_keep,
+        fail_fast=fail_fast,
+    )
+    with project.ui.logging("install"):
+        # hooks.try_emit("pre_install", candidates=candidates, dry_run=dry_run)
+        synchronizer.synchronize()
+        # hooks.try_emit("post_install", candidates=candidates, dry_run=dry_run)
+
+
 def do_padd(
     environment: BaseEnvironment,
     project: Project | None = None,
     *,
     selection: GroupSelection,
-    sync: bool = True,
+    sync: bool = True,  # TODO: consider False
     save: str = "compatible",
     strategy: str = "reuse",
     editables: Collection[str] = (),
