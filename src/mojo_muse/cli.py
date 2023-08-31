@@ -3,7 +3,7 @@ from typing import cast
 import click
 
 from .core.porcelain import do_init
-from .project import Project
+from .project import BaseEnvironment, Project, PythonEnvironment
 from .termui import ask
 
 
@@ -12,7 +12,13 @@ def main():  # subcommand uses main as decorator. main.command().
     pass
 
 
-def handle_init(project: Project, is_interactive: bool = True):
+def handle_init(
+    environment: BaseEnvironment,
+    project: Project | None = None,
+    is_interactive: bool = True,
+):
+    project = project or environment.project
+
     use_pyproject: bool = False
     if project.mojoproject.exists():
         project.ui.echo(
@@ -27,14 +33,15 @@ def handle_init(project: Project, is_interactive: bool = True):
     else:
         project.ui.echo("Creating a mojoproject.toml for Muse...", style="primary")
 
-    do_init(project=project, use_pyproject=use_pyproject)
+    do_init(environment=environment, use_pyproject=use_pyproject)
     project.ui.echo("Project is initialized successfully", style="primary")
 
 
 @main.command()
 def init():
     project = Project(root_path=".")
-    handle_init(project)
+    environment = PythonEnvironment(project=project)  # TODO: refine this.
+    handle_init(environment=environment, project=project)
 
 
 if __name__ == "__main__":

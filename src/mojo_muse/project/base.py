@@ -399,6 +399,11 @@ class Project:
                 )
         return self._python
 
+    @python.setter
+    def python(self, value: PythonInfo) -> None:
+        self._python = value
+        self._saved_python = value.path.as_posix()
+
     @property
     def mojo(self) -> MojoInfo:
         if not self._mojo:

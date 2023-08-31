@@ -20,7 +20,9 @@ def test_init():
 
     os.makedirs(test_path, exist_ok=True)
     with cd(test_path):
-        result = runner.invoke(init, input="\n\n\n\n\n\n\n\n\n")  # --yes
+        result = runner.invoke(
+            init, input="\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        )  # --yes
         assert result.exit_code == 0
 
     shutil.rmtree(test_path)

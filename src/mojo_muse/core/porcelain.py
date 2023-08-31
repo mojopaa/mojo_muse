@@ -19,6 +19,7 @@ from ..resolver import resolve_python
 from ..resolver.providers import get_provider
 from ..templates import MojoProjectTemplate, PyProjectTemplate
 from ..termui import ask
+from .plumbing import set_python
 
 
 # init
@@ -114,13 +115,16 @@ def _init_builtin_mojoproject(
 
 
 # def set_python(self, project: Project, python: str | None):
-def set_python():
-    pass
 
 
-def do_init(project: Project, use_pyproject: bool = False):
+def do_init(
+    environment: BaseEnvironment,
+    project: Project | None = None,
+    use_pyproject: bool = False,
+):
     # TODO: post_init hook
-    set_python()
+    project = project or environment.project
+    set_python(environment=environment)
     if use_pyproject:
         _init_builtin_pyproject(project=project)
     else:
