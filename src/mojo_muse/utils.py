@@ -210,12 +210,12 @@ def cd(path: str | Path) -> Iterator:
         os.chdir(_old_cwd)
 
 
-def find_project_root(cwd: str = ".", max_depth: int = 10, default: str = ".") -> str:
+def find_project_root(cwd: str = ".", max_depth: int = 10, default: str = ".") -> Path:
     """Recursively find a `pyproject.toml` at given path or current working directory.
     If none if found, go to the parent directory, at most `max_depth` levels will be
     looked for.
 
-    If no `pyproject.toml` is found, return the given `default` path.
+    If no `mojoproject.toml` or `pyproject.toml` is found, return the given `default` path.
     """
     original_path = Path(cwd).absolute()
     path = original_path
@@ -231,7 +231,7 @@ def find_project_root(cwd: str = ".", max_depth: int = 10, default: str = ".") -
             # Root path is reached
             break
         path = path.parent
-    return default
+    return Path(default)
 
 
 def path_to_url(path: str) -> str:
