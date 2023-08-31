@@ -12,7 +12,7 @@ from ..models.caches import JSONFileCache
 from ..models.python import PythonInfo
 from ..models.specifiers import PySpecSet
 from ..models.venv import VirtualEnv, get_venv_python
-from ..project import BaseEnvironment, Project
+from ..project import BaseEnvironment, Project, create_venv
 from ..resolver.python import PythonRequirement
 
 
@@ -231,7 +231,7 @@ def set_python(
         ):
             project._python = python_info
             try:
-                path = project._create_virtualenv()  # TODO
+                path = create_venv(project=project)  # TODO: check
                 python_info = PythonInfo.from_path(get_venv_python(path))
             except Exception as e:  # pragma: no cover
                 project.ui.echo(
