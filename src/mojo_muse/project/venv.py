@@ -294,7 +294,7 @@ BACKENDS: Mapping[str, type[Backend]] = {
 
 
 def create_venv(project: Project) -> Path:
-    backend: str = project.config["venv.backend"]
+    backend: str = project.config["venv.backend"]  # venv
     venv_backend = BACKENDS[backend](project, None)
     path = venv_backend.create(
         force=True,

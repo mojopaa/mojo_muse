@@ -126,7 +126,7 @@ def select_python(
     project.ui.echo("Please enter the Python interpreter to use")
     for i, py_version in enumerate(matching_interpreters):
         project.ui.echo(
-            f"{i}. [success]{py_version.path!s}[/] ({py_version.identifier})"  # TODO
+            f"{i}. [success]{py_version.path!s}[/] ({py_version.identifier})"
         )
     selection = termui.ask(
         "Please select",

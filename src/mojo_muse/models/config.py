@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Any, Callable, ClassVar, Iterator, Mapping, MutableMapping, cast
 
 import platformdirs
-import rich
 import tomlkit
+from rich.theme import Theme
 
 from .. import termui
 from ..exceptions import MuseUsageError, NoConfigError
@@ -264,7 +264,7 @@ class Config(MutableMapping[str, str]):
         ),
         "venv.backend": ConfigItem(
             "Default backend to create virtualenv",
-            default="virtualenv",
+            default="venv",
             env_var="MUSE_VENV_BACKEND",
         ),
         "venv.in_project": ConfigItem(
@@ -331,12 +331,10 @@ class Config(MutableMapping[str, str]):
     def self_data(self) -> dict[str, Any]:
         return dict(self._file_data)
 
-    def load_theme(self) -> rich.theme.Theme:
+    def load_theme(self) -> Theme:
         if not self.is_global:  # pragma: no cover
             raise MuseUsageError("Theme can only be loaded from global config")
-        return rich.theme.Theme(
-            {k[6:]: v for k, v in self.items() if k.startswith("theme.")}
-        )
+        return Theme({k[6:]: v for k, v in self.items() if k.startswith("theme.")})
 
     def iter_sources(self) -> Iterator[RepositoryConfig]:
         for name, data in self._data.items():
