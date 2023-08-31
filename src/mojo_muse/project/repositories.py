@@ -163,7 +163,7 @@ class BaseRepository:
 
         if self.is_this_package(requirement):
             return [self.make_this_candidate(requirement)]
-        requires_python = requirement.requires_python & self.environment.python_requires
+        requires_python = requirement.requires_python & self.environment.requires_python
         cans = LazySequence(self._find_candidates(requirement))
         applicable_cans = LazySequence(
             c
@@ -174,7 +174,8 @@ class BaseRepository:
         applicable_cans_python_compatible = LazySequence(
             c
             for c in applicable_cans
-            if ignore_requires_python or requires_python.is_subset(c.requires_python)
+            if ignore_requires_python
+            or requires_python.is_subset(c.requires_python)  # TODO
         )
         # Evaluate data-requires-python attr and discard incompatible candidates
         # to reduce the number of candidates to resolve.
@@ -218,7 +219,7 @@ class BaseRepository:
                     else:
                         termui.logger.debug(new_line)
 
-        if self.environment.project.core.ui.verbosity >= termui.Verbosity.DEBUG:
+        if self.environment.project.ui.verbosity >= termui.Verbosity.DEBUG:
             if applicable_cans:
                 log_candidates("Found matching candidates:", applicable_cans)
             elif cans:
@@ -263,7 +264,7 @@ class BaseRepository:
 
         return (
             reqs,
-            str(self.environment.python_requires),
+            str(self.environment.requires_python),
             project.pyproject.metadata.get("description", "UNKNOWN"),
         )
 
@@ -271,7 +272,7 @@ class BaseRepository:
         from packaging.tags import Tag
         from packaging.utils import parse_wheel_filename
 
-        def is_tag_match(tag: Tag, python_requires: PySpecSet) -> bool:
+        def is_tag_match(tag: Tag, requires_python: PySpecSet) -> bool:
             if tag.interpreter.startswith(("cp", "py")):
                 major, minor = tag.interpreter[2], tag.interpreter[3:]
                 if not minor:
@@ -286,7 +287,7 @@ class BaseRepository:
                     spec = PySpecSet(
                         f"~={version}"
                     )  # cp37-cp37 is only compatible with 3.7.*
-                return not (spec & python_requires).is_impossible
+                return not (spec & requires_python).is_impossible
             else:
                 # we don't know about compatility for non-cpython implementations
                 # assume it is compatible
@@ -294,14 +295,14 @@ class BaseRepository:
 
         if not link.is_wheel:
             return True
-        python_requires = self.environment.python_requires
+        requires_python = self.environment.requires_python
         tags = parse_wheel_filename(link.filename)[-1]
-        result = any(is_tag_match(tag, python_requires) for tag in tags)
+        result = any(is_tag_match(tag, requires_python) for tag in tags)
         if not result:
             termui.logger.debug(
                 "Skipping %r because it is not compatible with %r",
                 link,
-                python_requires,
+                requires_python,
             )
         return result
 

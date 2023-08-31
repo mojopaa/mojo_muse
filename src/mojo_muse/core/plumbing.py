@@ -3,17 +3,21 @@ import hashlib
 from pathlib import Path
 from typing import Iterable, cast
 
+from packaging.version import Version
 from resolvelib import ResolutionImpossible
 from resolvelib.resolvers import RequirementInformation
 
 from .. import termui
 from ..exceptions import MuseUsageError, NoPythonVersion
 from ..models.caches import JSONFileCache
+from ..models.candidates import Candidate
 from ..models.python import PythonInfo
-from ..models.specifiers import PySpecSet
+from ..models.requirements import BaseMuseRequirement
+from ..models.specifiers import PySpecSet, get_specifier
 from ..models.venv import VirtualEnv, get_venv_python
 from ..project import BaseEnvironment, Project, create_venv
 from ..resolver.python import PythonRequirement
+from ..utils import comparable_version
 
 
 def get_in_project_venv(root: Path) -> VirtualEnv | None:
@@ -305,3 +309,48 @@ def format_resolution_impossible(err: ResolutionImpossible) -> str:
         "#solve-the-locking-failure for more details."
     )
     return "\n".join(result)
+
+
+def save_version_specifiers(
+    requirements: dict[str, dict[str, BaseMuseRequirement]],
+    resolved: dict[str, Candidate],
+    save_strategy: str,
+) -> None:
+    """Rewrite the version specifiers according to the resolved result and save strategy
+
+    :param requirements: the requirements to be updated
+    :param resolved: the resolved mapping
+    :param save_strategy: compatible/wildcard/exact
+    """
+
+    def candidate_version(c: Candidate) -> Version:
+        assert c.version is not None
+        return comparable_version(c.version)
+
+    for reqs in requirements.values():
+        for name, r in reqs.items():
+            if r.is_named and not r.specifier:
+                if save_strategy == "exact":
+                    r.specifier = get_specifier(
+                        f"=={candidate_version(resolved[name])}"
+                    )
+                elif save_strategy == "compatible":
+                    version = candidate_version(resolved[name])
+                    if version.is_prerelease or version.is_devrelease:
+                        r.specifier = get_specifier(f">={version},<{version.major + 1}")
+                    else:
+                        r.specifier = get_specifier(
+                            f"~={version.major}.{version.minor}"
+                        )
+                elif save_strategy == "minimum":
+                    r.specifier = get_specifier(
+                        f">={candidate_version(resolved[name])}"
+                    )
+
+
+def populate_requirement_names(req_mapping: dict[str, BaseMuseRequirement]) -> None:
+    # Update the requirement key if the name changed.
+    for key, req in list(req_mapping.items()):
+        if key and key.startswith(":empty:"):
+            req_mapping[req.identify()] = req
+            del req_mapping[key]

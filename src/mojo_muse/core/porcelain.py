@@ -14,12 +14,19 @@ from ..models.candidates import Candidate
 from ..models.requirements import BaseMuseRequirement, parse_requirement
 from ..models.specifiers import get_specifier
 from ..project import BaseEnvironment, Project, check_project_file
+from ..project.filters import GroupSelection
 from ..project.repositories import BaseRepository, get_locked_repository, get_repository
 from ..resolver import resolve_python
 from ..resolver.providers import get_provider
 from ..templates import MojoProjectTemplate, PyProjectTemplate
 from ..termui import ask
-from .plumbing import set_python
+from .plumbing import (
+    do_use,
+    format_resolution_impossible,
+    populate_requirement_names,
+    save_version_specifiers,
+    set_python,
+)
 
 
 # init
@@ -271,7 +278,9 @@ def do_lock(
         try:
             with ui.open_spinner(title="Resolving dependencies") as spin:
                 reporter = project.get_reporter(requirements, tracked_names, spin)
-                resolver: Resolver = project.core.resolver_class(provider, reporter)
+                resolver: Resolver = project.core.resolver_class(
+                    provider, reporter
+                )  # TODO
                 # hooks.try_emit("pre_lock", requirements=requirements, dry_run=dry_run)
                 mapping, dependencies = resolve_python(
                     resolver=resolver,
@@ -313,19 +322,29 @@ def do_lock(
 
 
 def do_padd(
-    project: Project,
+    environment: BaseEnvironment,
+    project: Project | None = None,
+    *,
+    selection: GroupSelection,
+    sync: bool = True,
+    save: str = "compatible",
+    strategy: str = "reuse",
     editables: Collection[str] = (),
     packages: Collection[str] = (),
     no_editable: bool = False,
+    no_self: bool = False,
+    dry_run: bool = False,
     prerelease: bool = False,
+    fail_fast: bool = False,
     unconstrained: bool = False,
 ):
     """Add packages and install"""
     # hooks = hooks or HookManager(project)
+    project = project or environment.project
     check_project_file(project)
     if editables and no_editable:
         raise MuseUsageError("Cannot use --no-editable with editable packages given.")
-    # group = selection.one()
+    group = selection.one()
     tracked_names: set[str] = set()
     requirements: dict[str, BaseMuseRequirement] = {}
     lock_groups = ["default"] if project.lockfile.empty() else project.lockfile.groups
@@ -348,7 +367,7 @@ def do_padd(
         parse_requirement(line) for line in packages
     ]:
         if project.name and normalize_name(project.name) == r.key and not r.extras:
-            project.core.ui.echo(
+            project.ui.echo(
                 f"Package [req]{project.name}[/] is the project itself.",
                 err=True,
                 style="warning",
@@ -383,11 +402,31 @@ def do_padd(
     ]
     # with hooks.skipping("post_lock"):
     resolved = do_lock(
-        project,
+        environment,
         strategy,
         tracked_names,
         reqs,
         dry_run=True,
-        hooks=hooks,
+        # hooks=hooks,
         groups=lock_groups,
     )
+
+    # Update dependency specifiers and lockfile hash.
+    deps_to_update = group_deps if unconstrained else requirements
+    save_version_specifiers({group: deps_to_update}, resolved, save)
+    if not dry_run:
+        project.add_dependencies(deps_to_update, group, selection.dev or False)
+        project.write_lockfile(project.lockfile._data, False)
+        # hooks.try_emit("post_lock", resolution=resolved, dry_run=dry_run)
+    populate_requirement_names(group_deps)
+    if sync:
+        do_sync(
+            project,
+            selection=GroupSelection(project, groups=[group], default=False),
+            no_editable=no_editable and tracked_names,
+            no_self=no_self or group != "default",
+            requirements=list(group_deps.values()),
+            dry_run=dry_run,
+            fail_fast=fail_fast,
+            # hooks=hooks,
+        )

@@ -179,7 +179,7 @@ class BaseSynchronizer:
         return self._manager
 
     def get_manager(self) -> InstallManager:
-        return self.environment.project.core.install_manager_class(
+        return self.environment.project.core.install_manager_class(  # TODO
             self.environment, use_install_cache=self.use_install_cache
         )
 
