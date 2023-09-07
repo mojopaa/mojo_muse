@@ -2,8 +2,9 @@ from typing import cast
 
 import click
 
-from .core import do_init
+from .core import do_init, do_padd
 from .project import BaseEnvironment, Project, PythonEnvironment
+from .project.filters import GroupSelection  # TODO: export to project
 from .termui import ask
 
 
@@ -42,6 +43,25 @@ def init():
     project = Project(root_path=".")
     environment = PythonEnvironment(project=project)  # TODO: refine this.
     handle_init(environment=environment, project=project)
+
+
+@main.command()
+@main.option("-d", "--dev", is_flag=True)
+@main.option("-G", "--group", help="Specify the target dependency group to add into")
+@main.option("-s", "--sync", help="Write pyproject.toml and sync the working set")
+def padd(dev: bool, group: str | None = None):
+    project = Project()
+    environment = PythonEnvironment(project=project)
+    if group:
+        selection = GroupSelection(project=project, group=group, dev=dev)
+    else:
+        selection = GroupSelection(
+            project=project, default=default, dev=dev, groups=groups
+        )
+    do_padd(
+        environment=environment,
+        selection=selection,
+    )
 
 
 if __name__ == "__main__":
