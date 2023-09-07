@@ -1,3 +1,5 @@
+import os
+from pathlib import Path
 from typing import Collection, Iterable, Mapping, cast
 
 import tomlkit
@@ -11,7 +13,11 @@ from ..formats.base import make_array, make_inline_table
 from ..installers.synchronizers import Synchronizer
 from ..models.backends import _BACKENDS, DEFAULT_BACKEND, get_backend
 from ..models.candidates import Candidate
-from ..models.requirements import BaseMuseRequirement, parse_requirement
+from ..models.requirements import (
+    BaseMuseRequirement,
+    FileMuseRequirement,
+    parse_requirement,
+)
 from ..models.specifiers import get_specifier
 from ..project import BaseEnvironment, Project, check_project_file
 from ..project.filters import GroupSelection
@@ -155,15 +161,25 @@ def format_lockfile(
     """
 
     packages = tomlkit.aot()
+    backend = project.backend
     for _k, v in sorted(mapping.items()):
         base = tomlkit.table()
         base.update(v.as_lockfile_entry(project.root))
         base.add("summary", v.summary or "")
-        deps = make_array(
-            sorted(r.as_line() for r in fetched_dependencies[v.dep_key]), True
-        )
+        deps: list[str] = []
+        for r in fetched_dependencies[v.dep_key]:
+            # Try to convert to relative paths to make it portable
+            if isinstance(r, FileMuseRequirement) and r.path and r.path.is_absolute():
+                try:
+                    r.path = Path(os.path.normpath(r.path)).relative_to(
+                        os.path.normpath(project.root)
+                    )
+                    r.url = backend.relative_path_to_url(r.path.as_posix())
+                except ValueError:
+                    pass
+            deps.append(r.as_line())
         if len(deps) > 0:
-            base.add("dependencies", deps)
+            base.add("dependencies", make_array(sorted(deps), True))
         if v.hashes:
             collected = {}
             for item in v.hashes:
@@ -196,7 +212,6 @@ def format_lockfile(
     )
     doc.add("metadata", metadata)
     doc.add("package", packages)
-
     return cast(dict, doc)
 
 
