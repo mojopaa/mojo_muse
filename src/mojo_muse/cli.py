@@ -46,9 +46,9 @@ def init():
 
 
 @main.command()
-@main.option("-d", "--dev", is_flag=True)
-@main.option("-G", "--group", help="Specify the target dependency group to add into")
-@main.option("-s", "--sync", help="Write pyproject.toml and sync the working set")
+@click.option("-d", "--dev", is_flag=True)
+@click.option("-G", "--group", help="Specify the target dependency group to add into")
+@click.option("-s", "--sync", help="Write pyproject.toml and sync the working set")
 def padd(dev: bool, group: str | None = None):
     project = Project()
     environment = PythonEnvironment(project=project)
