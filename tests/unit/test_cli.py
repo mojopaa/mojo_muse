@@ -19,10 +19,11 @@ def test_init():
     test_path = Path(__file__).parent.parent / "t"  # tests/t
 
     os.makedirs(test_path, exist_ok=True)
-    with cd(test_path):
-        result = runner.invoke(
-            init, input="\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
-        )  # --yes
-        assert result.exit_code == 0
-
-    shutil.rmtree(test_path)
+    try:
+        with cd(test_path):
+            result = runner.invoke(
+                init, input="\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+            )  # --yes
+            assert result.exit_code == 0
+    finally:
+        shutil.rmtree(test_path)
