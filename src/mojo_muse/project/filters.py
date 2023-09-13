@@ -61,7 +61,7 @@ class GroupSelection:
         return list(self)
 
     @cached_property
-    def _translated_groups(self) -> list[str]:
+    def _translated_groups(self) -> list[str]:  # TODO: only ["default"]?
         """Translate default, dev and groups containing ":all" into a list of groups"""
         if self.is_unset:
             # Default case, return what is in the lock file
