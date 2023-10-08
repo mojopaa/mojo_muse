@@ -135,13 +135,6 @@ class Config(MutableMapping[str, str]):
         "global_project.user_site": ConfigItem(
             "Whether to install to user site", False, True, coerce=ensure_boolean
         ),
-        "project_max_depth": ConfigItem(
-            "The max depth to search for a project through the parents",
-            10,
-            True,
-            env_var="MUSE_PROJECT_MAX_DEPTH",
-            coerce=int,
-        ),
         "strategy.update": ConfigItem(
             "The default strategy for updating packages", "reuse", False
         ),
