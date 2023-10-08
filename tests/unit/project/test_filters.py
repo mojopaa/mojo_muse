@@ -1,13 +1,13 @@
 """A inspiring test file. This contains technique about how to init a Project under a foler, and how to set up deps for it."""
 
-from pathlib import Path
-import shutil
 import os
+import shutil
+from pathlib import Path
 
 import pytest
 
-from mojo_muse.project.filters import GroupSelection
 from mojo_muse.project import Project
+from mojo_muse.project.filters import GroupSelection
 from mojo_muse.utils import cd
 
 
@@ -18,8 +18,12 @@ def setup_dependencies(project):  # TODO: project.pyproject?
             "optional-dependencies": {"web": ["flask"], "auth": ["passlib"]},
         }
     )
-    project.pyproject.settings.update({"dev-dependencies": {"test": ["pytest"], "doc": ["mkdocs"]}})
+    project.pyproject.settings.update(
+        {"dev-dependencies": {"test": ["pytest"], "doc": ["mkdocs"]}}
+    )
     project.pyproject.write()  # TODO: Project(root_path=".") will write to mojo_muse's pyproject.toml? Why?
+
+
 @pytest.mark.parametrize(
     "args,golden",
     [
@@ -46,7 +50,7 @@ def setup_dependencies(project):  # TODO: project.pyproject?
     ],
 )
 def dependency_group_selection(args, golden):
-# def test_dependency_group_selection(args, golden):  # TODO: test failed.
+    # def test_dependency_group_selection(args, golden):  # TODO: test failed.
     test_dir = Path(__file__).parent.parent.parent / "g"  # test/g
     os.makedirs(test_dir, exist_ok=True)
 

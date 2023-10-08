@@ -4,9 +4,10 @@ from typing import Callable, Iterable, Iterator, Mapping, Sequence, cast
 
 from mups import normalize_name
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
-from resolvelib import AbstractProvider
-from resolvelib.resolvers import RequirementInformation
+from resolvelib import AbstractProvider, RequirementsConflicted
+from resolvelib.resolvers import Criterion, RequirementInformation
 
+from ..exceptions import InvalidPyVersion, RequirementError
 from ..models.candidates import Candidate, make_candidate
 from ..models.requirements import (
     BaseMuseRequirement,
@@ -15,6 +16,7 @@ from ..models.requirements import (
     strip_extras,
 )
 from ..project import BaseRepository, LockedRepository, Project
+from ..termui import logger
 from ..utils import Comparable, is_url, url_without_fragments
 from .mojo import (
     MojoCandidate,
@@ -91,11 +93,16 @@ class BaseProvider(AbstractProvider):
             )
             dep_depth = min(parent_depths, default=0) + 1
         # Use the REAL identifier as it may be updated after candidate preparation.
-        candidate = next(candidates[identifier])
+        deps: list[BaseMuseRequirement] = []
+        for candidate in candidates[identifier]:
+            try:
+                deps = self.get_dependencies(candidate)
+            except RequirementsConflicted:
+                continue
+            break
         self._known_depth[self.identify(candidate)] = dep_depth
         is_backtrack_cause = any(
-            dep.identify() in backtrack_identifiers
-            for dep in self.get_dependencies(candidate)
+            dep.identify() in backtrack_identifiers for dep in deps
         )
         is_file_or_url = any(
             not requirement.is_named for requirement, _ in information[identifier]
@@ -220,9 +227,16 @@ class BaseProvider(AbstractProvider):
     ) -> list[BaseMuseRequirement]:  # TODO
         if isinstance(candidate, MojoCandidate):
             return []
-        deps, requires_mojo, _ = self.repository.get_dependencies(
-            candidate
-        )  # TODO: get_dependencies need project.
+
+        # TODO: get_dependencies need project.
+        # TODO: requires_mojo?? requires_python?
+        try:
+            deps, requires_mojo, _ = self.repository.get_dependencies(candidate)
+        except (RequirementError, InvalidPyVersion, InvalidSpecifier) as e:
+            # When the metadata is invalid, skip this candidate by marking it as conflicting.
+            # Here we pass an empty criterion so it doesn't provide any info to the resolution.
+            logger.error("Invalid metadata in %s: %s", candidate, e)
+            raise RequirementsConflicted(Criterion([], [], [])) from None
 
         # Filter out incompatible dependencies(e.g. functools32) early so that
         # we don't get errors when building wheels.
