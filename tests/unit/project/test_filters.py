@@ -12,16 +12,16 @@ from mojo_muse.utils import cd
 
 
 def setup_dependencies(project):  # TODO: project.pyproject?
-    project.pyproject.metadata.update(
+    project.mojoproject.metadata.update(
         {
             "dependencies": ["requests"],
             "optional-dependencies": {"web": ["flask"], "auth": ["passlib"]},
         }
     )
-    project.pyproject.settings.update(
+    project.mojoproject.settings.update(
         {"dev-dependencies": {"test": ["pytest"], "doc": ["mkdocs"]}}
     )
-    project.pyproject.write()  # TODO: Project(root_path=".") will write to mojo_muse's pyproject.toml? Why?
+    project.mojoproject.write()  # TODO: Project(root_path=".") will write to mojo_muse's pyproject.toml? Why?
 
 
 @pytest.mark.parametrize(
@@ -49,7 +49,7 @@ def setup_dependencies(project):  # TODO: project.pyproject?
         ({"default": False, "dev": None, "groups": ()}, ["test", "doc"]),
     ],
 )
-def dependency_group_selection(args, golden):
+def test_dependency_group_selection(args, golden):
     # def test_dependency_group_selection(args, golden):  # TODO: test failed.
     test_dir = Path(__file__).parent.parent.parent / "g"  # test/g
     os.makedirs(test_dir, exist_ok=True)
@@ -63,3 +63,12 @@ def dependency_group_selection(args, golden):
     finally:
         shutil.rmtree(test_dir)
         # pass
+
+
+if __name__ == "__main__":
+    project = Project(root_path=".")
+    setup_dependencies(project)
+    selection = GroupSelection(project=project, default=True, dev=None, groups=())
+    print(selection)
+    print(sorted(selection))
+    assert sorted(selection) == sorted(["default", "test", "doc"])

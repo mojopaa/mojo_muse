@@ -72,11 +72,17 @@ class GroupSelection:
         default, dev, groups = self.default, self.dev, self.groups
         if dev is None:  # --prod is not set, include dev-dependencies
             dev = True
+
         project = self.project
-        optional_groups = set(
-            project.pyproject.metadata.get("optional-dependencies", {})
-        )
-        dev_groups = set(project.pyproject.settings.get("dev-dependencies", {}))
+        if project.is_mojoproject:
+            project_file = project.mojoproject
+        elif project.is_pryproject:
+            project_file = project.pyproject
+        else:
+            project_file = project.mojoproject
+
+        optional_groups = set(project_file.metadata.get("optional-dependencies", {}))
+        dev_groups = set(project_file.settings.get("dev-dependencies", {}))
         groups_set = set(groups)
         if groups_set & dev_groups:
             if not dev:

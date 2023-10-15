@@ -170,6 +170,14 @@ class Project:
         )
         self.mojoproject.write()
 
+    @property
+    def is_mojoproject(self) -> bool:
+        return self.mojoproject.exists()
+
+    @property
+    def is_pyproject(self) -> bool:
+        return self.pyproject.exists()
+
     @cached_property
     def mojoproject(self) -> MojoProjectFile:
         return MojoProjectFile(self.root / self.MOJOPROJECT_FILENAME, ui=self.ui)
@@ -177,6 +185,10 @@ class Project:
     @cached_property
     def pyproject(self) -> PyProjectFile:
         return PyProjectFile(self.root / self.PYPROJECT_FILENAME, ui=self.ui)
+
+    @cached_property
+    def project_file(self) -> MojoProjectFile | PyProjectFile:
+        return self.pyproject if self.is_pyproject else self.mojoproject
 
     @cached_property
     def config(self) -> Mapping[str, Any]:
@@ -517,10 +529,10 @@ class Project:
 
     def iter_groups(self) -> Iterable[str]:
         groups = {"default"}
-        if self.mojoproject.metadata.get("optional-dependencies"):
-            groups.update(self.mojoproject.metadata["optional-dependencies"].keys())
-        if self.mojoproject.settings.get("dev-dependencies"):
-            groups.update(self.mojoproject.settings["dev-dependencies"].keys())
+        if self.project_file.metadata.get("optional-dependencies"):
+            groups.update(self.project_file.metadata["optional-dependencies"].keys())
+        if self.project_file.settings.get("dev-dependencies"):
+            groups.update(self.project_file.settings["dev-dependencies"].keys())
         return groups
 
     @property
