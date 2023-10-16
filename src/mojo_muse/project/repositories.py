@@ -55,6 +55,9 @@ def cache_result(
     return wrapper
 
 
+# Providers use repositories' find_candidates() and get_dependencies()
+
+
 class BaseRepository:
     """A Repository acts as the source of packages and metadata."""
 

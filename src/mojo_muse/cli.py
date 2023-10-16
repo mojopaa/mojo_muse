@@ -3,7 +3,7 @@ from typing import cast
 import click
 
 from .core import do_init, do_padd
-from .project import BaseEnvironment, Project, PythonEnvironment
+from .project import BaseEnvironment, MojoEnvironment, Project, PythonEnvironment
 from .project.filters import GroupSelection  # TODO: export to project
 from .termui import ask
 
@@ -48,19 +48,29 @@ def init():
 @main.command()
 @click.option("-d", "--dev", is_flag=True)
 @click.option("-G", "--group", help="Specify the target dependency group to add into")
-@click.option("-s", "--sync", help="Write pyproject.toml and sync the working set")
-def padd(dev: bool, group: str | None = None):
+@click.option(
+    "-s", "--sync", is_flag=True, help="Write pyproject.toml and sync the working set"
+)
+@click.argument("req")
+def padd(req: str, dev: bool, group: str | None = None, sync: bool = False):
     project = Project()
-    environment = PythonEnvironment(project=project)
+    # environment = PythonEnvironment(project=project)
+    if project.is_pyproject:
+        environment = PythonEnvironment(project=project)
+    else:
+        environment = MojoEnvironment(project=project)
+
     if group:
         selection = GroupSelection(project=project, group=group, dev=dev)
     else:
-        selection = GroupSelection(
-            project=project, default=default, dev=dev, groups=groups
-        )
+        # selection = GroupSelection(
+        #     project=project, default=default, dev=dev, groups=groups
+        # )
+        selection = GroupSelection(project=project, default=True, dev=dev, groups=())
     do_padd(
         environment=environment,
         selection=selection,
+        packages=req,
     )
 
 

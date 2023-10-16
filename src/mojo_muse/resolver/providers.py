@@ -16,6 +16,7 @@ from ..models.requirements import (
     strip_extras,
 )
 from ..project import BaseRepository, LockedRepository, Project
+from ..project.repositories import get_repository
 from ..termui import logger
 from ..utils import Comparable, is_url, url_without_fragments
 from .mojo import (
@@ -382,7 +383,9 @@ def get_provider(
         BaseProvider: The provider object.
     """
 
-    repository = project.get_repository(ignore_compatibility=ignore_compatibility)
+    repository = get_repository(
+        project=project, ignore_compatibility=ignore_compatibility
+    )  # TODO
     allow_prereleases = project.allow_prereleases
     overrides = {
         normalize_name(k): v
