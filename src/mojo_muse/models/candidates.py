@@ -333,3 +333,29 @@ def make_candidate(
     return Candidate(
         req, name, version, link
     )  # TODO: make mojo candidate or python candidate
+
+
+class CandidateInfoCache(JSONFileCache[Candidate, CandidateInfo]):
+    """A cache manager that stores the
+    candidate -> (dependencies, requires_python, summary) mapping.
+    """
+
+    @staticmethod
+    def get_url_part(link: Link) -> str:
+        url = url_without_fragments(link.split_auth()[1])
+        return base64.urlsafe_b64encode(url.encode()).decode()
+
+    @classmethod
+    def _get_key(cls, obj: Candidate) -> str:
+        # Name and version are set when dependencies are resolved,
+        # so use them for cache key. Local directories won't be cached.
+        if not obj.name or not obj.version:
+            raise KeyError("The package is missing a name or version")
+        extras = (
+            "[{}]".format(",".join(sorted(obj.req.extras))) if obj.req.extras else ""
+        )
+        version = obj.version
+        if not obj.req.is_named:
+            assert obj.link is not None
+            version = cls.get_url_part(obj.link)
+        return f"{obj.name}{extras}-{version}"

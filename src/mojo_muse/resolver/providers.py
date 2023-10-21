@@ -15,8 +15,8 @@ from ..models.requirements import (
     parse_requirement,
     strip_extras,
 )
-from ..project import BaseRepository, LockedRepository, Project
-from ..project.repositories import get_repository
+from ..project import BaseEnvironment, BaseRepository, LockedRepository, Project
+from ..project.repositories import get_pypi_repository, get_repository
 from ..termui import logger
 from ..utils import Comparable, is_url, url_without_fragments
 from .mojo import (
@@ -386,6 +386,62 @@ def get_provider(
     repository = get_repository(
         project=project, ignore_compatibility=ignore_compatibility
     )  # TODO
+    allow_prereleases = project.allow_prereleases
+    overrides = {
+        normalize_name(k): v
+        for k, v in project.mojoproject.resolution_overrides.items()
+    }
+    locked_repository: LockedRepository | None = None
+    if strategy != "all" or for_install:
+        try:
+            locked_repository = project.locked_repository
+        except Exception:
+            if for_install:
+                raise
+            project.ui.echo(
+                "Unable to reuse the lock file as it is not compatible with PDM",
+                style="warning",
+                err=True,
+            )
+
+    if locked_repository is None:
+        return BaseProvider(repository, allow_prereleases, overrides)
+    if for_install:
+        return BaseProvider(locked_repository, allow_prereleases, overrides)
+    provider_class = ReusePinProvider if strategy == "reuse" else EagerUpdateProvider
+    tracked_names = [strip_extras(name)[0] for name in tracked_names or ()]
+    return provider_class(
+        locked_repository.all_candidates,
+        tracked_names,
+        repository,
+        allow_prereleases,
+        overrides,
+    )
+
+
+def get_pypi_provider(
+    environment: BaseEnvironment,
+    project: Project | None = None,
+    strategy: str = "all",
+    tracked_names: Iterable[str] | None = None,
+    for_install: bool = False,
+    ignore_compatibility: bool = True,
+) -> BaseProvider:
+    """Builds a provider class for resolver.
+
+    Args:
+        strategy (str): The resolve strategy.
+        tracked_names (Iterable[str] | None): The names of packages that need to be updated.
+        for_install (bool): If the provider is for install.
+        ignore_compatibility (bool): Whether to ignore compatibility.
+
+    Returns:
+        BaseProvider: The provider object.
+    """
+    project = project or environment.project
+    repository = get_pypi_repository(
+        environment=environment, ignore_compatibility=ignore_compatibility
+    )
     allow_prereleases = project.allow_prereleases
     overrides = {
         normalize_name(k): v

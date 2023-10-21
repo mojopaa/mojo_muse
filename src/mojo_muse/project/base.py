@@ -48,6 +48,7 @@ from ..models.caches import HashCache, ProjectCache
 from ..models.candidates import (
     BasePreparedCandidate,
     Candidate,
+    CandidateInfoCache,
     MetadataDistribution,
     make_candidate,
 )
@@ -643,6 +644,11 @@ class Project:
 
     def make_hash_cache(self) -> HashCache:
         return self.project_cache.make_hash_cache()
+
+    def make_candidate_info_cache(self) -> CandidateInfoCache:
+        python_hash = hashlib.sha1(str(self.requires_python).encode()).hexdigest()
+        file_name = f"package_meta_{python_hash}.json"
+        return CandidateInfoCache(self.project_cache.cache("metadata") / file_name)
 
 
 # original finders.py

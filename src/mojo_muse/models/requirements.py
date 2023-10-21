@@ -29,8 +29,8 @@ from ..utils import (
 )
 from .backends import BuildBackend
 from .link import Link
-from .markers import split_marker_extras
-from .specifiers import get_specifier
+from .markers import PyMarker, split_marker_extras
+from .specifiers import PySpecSet, get_specifier
 
 VCS_SCHEMA = ("git", "hg", "svn", "bzr")
 _vcs_req_re = re.compile(
@@ -72,14 +72,21 @@ class BaseMuseRequirement(ABC):
     ) -> None:
         self.name = name
         if marker:
-            if isinstance(marker, Marker):
+            if isinstance(marker, PyMarker):
                 self.marker = marker
             elif isinstance(marker, str):
-                self.marker = Marker(marker)
+                self.marker = PyMarker(marker)
             elif marker is None:
                 pass
             else:
                 raise TypeError("marker must be a string or a Marker.")
+        else:
+            self.marker = None
+
+        self.requires_python = (
+            self.marker.split_pyspec()[1] if self.marker else PySpecSet()
+        )
+
         if extras:
             if isinstance(extras, list):
                 self.extras = extras

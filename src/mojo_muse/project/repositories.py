@@ -77,7 +77,7 @@ class BaseRepository:
         self.environment = environment
         self.ignore_compatibility = ignore_compatibility
         self._candidate_info_cache = (
-            environment.project.project_cache.make_candidate_info_cache()
+            environment.project.make_candidate_info_cache()
         )  # TODO
         self._hash_cache = environment.project.make_hash_cache()
 
@@ -595,6 +595,24 @@ def get_repository(
         cls = MojoPIRepository  # TODO
     sources = project.sources or []
     return cls(sources, ignore_compatibility=ignore_compatibility)
+
+
+def get_pypi_repository(
+    environment: BaseEnvironment,
+    project: Project | None = None,
+    cls: type[BaseRepository] | None = None,
+    ignore_compatibility: bool = True,
+) -> BaseRepository:
+    project = project or environment.project
+    if cls is None:
+        # cls = self.core.repository_class  # TODO: need to investigate
+        cls = PyPIRepository  # TODO
+    sources = project.sources or []
+    return cls(
+        sources=sources,
+        environment=environment,
+        ignore_compatibility=ignore_compatibility,
+    )
 
 
 def get_locked_repository(project: Project) -> LockedRepository:

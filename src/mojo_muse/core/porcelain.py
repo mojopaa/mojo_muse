@@ -21,9 +21,14 @@ from ..models.requirements import (
 from ..models.specifiers import get_specifier
 from ..project import BaseEnvironment, Project, check_project_file
 from ..project.filters import GroupSelection
-from ..project.repositories import BaseRepository, get_locked_repository, get_repository
+from ..project.repositories import (
+    BaseRepository,
+    get_locked_repository,
+    get_pypi_repository,
+    get_repository,
+)
 from ..resolver import resolve_python
-from ..resolver.providers import get_provider
+from ..resolver.providers import get_provider, get_pypi_provider
 from ..resolver.reporters import get_reporter
 from ..templates import MojoProjectTemplate, PyProjectTemplate
 from ..termui import ask
@@ -235,7 +240,7 @@ def do_lock(
         static_urls = project.lockfile.static_urls
     if refresh:
         locked_repo = get_locked_repository(project)
-        repo = get_repository(project)
+        pypi_repo = get_pypi_repository(project)
         mapping: dict[str, Candidate] = {}
         dependencies: dict[tuple[str, str | None], list[BaseMuseRequirement]] = {}
         with project.ui.open_spinner("Re-calculating hashes..."):
@@ -248,7 +253,7 @@ def do_lock(
             with project.ui.logging("lock"):
                 for c in mapping.values():
                     c.hashes.clear()
-                fetch_hashes(repo, mapping)
+                fetch_hashes(pypi_repo, mapping)
             lockfile = format_lockfile(
                 project,
                 mapping,
@@ -261,8 +266,11 @@ def do_lock(
     # TODO: multiple dependency definitions for the same package.
     if cross_platform is None:
         cross_platform = project.lockfile.cross_platform
-    provider = get_provider(
-        strategy, tracked_names, ignore_compatibility=cross_platform  # TODO: check
+    pypi_provider = get_pypi_provider(
+        environment=environment,
+        strategy=strategy,
+        tracked_names=tracked_names,
+        ignore_compatibility=cross_platform,
     )
     if not requirements:
         requirements = [
@@ -284,19 +292,21 @@ def do_lock(
         # The context managers are nested to ensure the spinner is stopped before
         # any message is thrown to the output.
         try:
-            with ui.open_spinner(title="Resolving dependencies") as spin:
+            with ui.open_spinner(title="Resolving PyPI dependencies") as spin:
                 reporter = get_reporter(requirements, tracked_names, spin)
-                resolver: Resolver = Resolver(provider, reporter)  # TODO
+                pypi_resolver: Resolver = Resolver(pypi_provider, reporter)  # TODO
                 # hooks.try_emit("pre_lock", requirements=requirements, dry_run=dry_run)
                 mapping, dependencies = resolve_python(
-                    resolver=resolver,
+                    resolver=pypi_resolver,
                     requirements=requirements,
                     requires_python=project.requires_python,
                     project=project,
                     max_rounds=resolve_max_rounds,
                 )
                 spin.update("Fetching hashes for resolved packages...")
-                fetch_hashes(provider.repository, mapping)
+                fetch_hashes(pypi_provider.repository, mapping)
+
+            # TODO: resolve MojoPI dependencies
         except ResolutionTooDeep:
             ui.echo(f"{termui.Emoji.LOCK} Lock failed", err=True)
             ui.echo(

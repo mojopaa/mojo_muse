@@ -107,7 +107,7 @@ class SpinnerReporter(BaseReporter):
 def get_reporter(
     # project: Project,
     requirements: list[BaseMuseRequirement],
-    # tracked_names: Iterable[str] | None = None,
+    tracked_names: Iterable[str] | None = None,
     spinner: Spinner | None = None,
 ) -> BaseReporter:
     """Return the reporter object to construct a resolver.
