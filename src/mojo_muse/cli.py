@@ -70,7 +70,7 @@ def padd(req: str, dev: bool, group: str | None = None, sync: bool = False):
     do_padd(
         environment=environment,
         selection=selection,
-        packages=req,
+        packages=(req,),
     )
 
 

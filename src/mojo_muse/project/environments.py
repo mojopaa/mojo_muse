@@ -95,7 +95,7 @@ class BaseEnvironment(ABC):
     def _build_session(self, trusted_hosts: list[str]) -> MuseSession:
         ca_certs = self.project.config.get("pypi.ca_certs")
         session = MuseSession(
-            cache_dir=self.project.cache("http"),
+            cache_dir=self.project.project_cache.cache("http"),
             trusted_hosts=trusted_hosts,
             ca_certificates=Path(ca_certs) if ca_certs is not None else None,
         )

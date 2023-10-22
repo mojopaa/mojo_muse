@@ -65,7 +65,7 @@ from ..models.requirements import (
     parse_requirement,
     strip_extras,
 )
-from ..models.specifiers import get_specifier
+from ..models.specifiers import PySpecSet, get_specifier
 from ..models.venv import VirtualEnv, get_in_project_venv, get_venv_python
 from ..models.working_set import WorkingSet
 from ..session import MuseSession, PyPISession
@@ -476,11 +476,13 @@ class Project:
 
     @property
     def requires_mojo(self) -> SpecifierSet:
-        return SpecifierSet(self.mojoproject.metadata.get("requires-mojo", ""))
+        return SpecifierSet(
+            self.mojoproject.metadata.get("requires-mojo", "")
+        )  # TODO: SpecifierSet?
 
     @property
     def requires_python(self) -> SpecifierSet:
-        return SpecifierSet(
+        return PySpecSet(
             self.mojoproject.metadata.get("requires-python", "")
         )  # TODO: double check
 

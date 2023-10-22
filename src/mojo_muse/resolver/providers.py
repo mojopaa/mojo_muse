@@ -399,7 +399,7 @@ def get_provider(
             if for_install:
                 raise
             project.ui.echo(
-                "Unable to reuse the lock file as it is not compatible with PDM",
+                "Unable to reuse the lock file as it is not compatible with MUSE",
                 style="warning",
                 err=True,
             )
@@ -455,7 +455,7 @@ def get_pypi_provider(
             if for_install:
                 raise
             project.ui.echo(
-                "Unable to reuse the lock file as it is not compatible with PDM",
+                "Unable to reuse the lock file as it is not compatible with MUSE",
                 style="warning",
                 err=True,
             )
